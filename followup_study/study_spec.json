@@ -1,0 +1,180 @@
+{
+  "persona_root": "prev_paper_materials/persona",
+  "generated_root": "followup_study/generated",
+  "datasets": [
+    {
+      "name": "insecure_code",
+      "levels": ["misaligned_1", "misaligned_2"],
+      "control_level": "normal",
+      "domain": "code"
+    },
+    {
+      "name": "mistake_gsm8k",
+      "levels": ["misaligned_1", "misaligned_2"],
+      "control_level": "normal",
+      "domain": "math_reasoning"
+    },
+    {
+      "name": "mistake_math",
+      "levels": ["misaligned_1", "misaligned_2"],
+      "control_level": "normal",
+      "domain": "math_reasoning"
+    },
+    {
+      "name": "mistake_medical",
+      "levels": ["misaligned_1", "misaligned_2"],
+      "control_level": "normal",
+      "domain": "medical"
+    }
+  ],
+  "traits": [
+    "apathetic",
+    "evil",
+    "hallucinating",
+    "humorous",
+    "impolite",
+    "optimistic",
+    "sycophantic"
+  ],
+  "trait_taxonomy": {
+    "epistemic_failure": ["hallucinating"],
+    "social_alignment_failure": ["evil", "sycophantic"],
+    "affective_style_controls": ["apathetic", "humorous", "impolite", "optimistic"]
+  },
+  "models": [
+    {
+      "alias": "llama_3_1_8b_instruct",
+      "model_id": "meta-llama/Llama-3.1-8B-Instruct",
+      "family": "llama",
+      "notes": "Compatible with the current text-only persona pipeline."
+    },
+    {
+      "alias": "gemma_slot",
+      "model_id": "google/gemma-2-9b-it",
+      "preferred_model_id": "google/gemma-3-12b-it",
+      "family": "gemma",
+      "notes": "The current persona code is text-only. Gemma 3 12B is multimodal and likely needs loader changes, so the scaffold defaults to Gemma 2 9B for reproducible runs."
+    },
+    {
+      "alias": "qwen_2_5_7b_instruct",
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "family": "qwen",
+      "notes": "Matches the previous study's model family."
+    }
+  ],
+  "judges": [
+    {
+      "name": "gpt41mini",
+      "provider": "openai",
+      "model_id": "gpt-4.1-mini-2025-04-14"
+    },
+    {
+      "name": "gemma2_local",
+      "provider": "local_hf",
+      "model_id": "google/gemma-2-9b-it"
+    }
+  ],
+  "seed_tiers": {
+    "full_grid": [0],
+    "robustness": [11, 22, 33]
+  },
+  "robustness_subset": [
+    {
+      "model_alias": "llama_3_1_8b_instruct",
+      "datasets": ["mistake_medical"],
+      "levels": ["misaligned_1", "misaligned_2"]
+    },
+    {
+      "model_alias": "qwen_2_5_7b_instruct",
+      "datasets": ["mistake_medical"],
+      "levels": ["misaligned_1", "misaligned_2"]
+    },
+    {
+      "model_alias": "llama_3_1_8b_instruct",
+      "datasets": ["mistake_math"],
+      "levels": ["misaligned_1"]
+    }
+  ],
+  "evaluation_defaults": {
+    "version": "eval",
+    "n_per_question": 20,
+    "max_tokens": 1000,
+    "seed": 0
+  },
+  "critical_point_methods": [
+    "moving_average_monotonic",
+    "threshold_crossing",
+    "ruptures_change_point"
+  ],
+  "critical_point_defaults": {
+    "window": 3,
+    "patience": 2,
+    "threshold": 50.0,
+    "min_segment": 2
+  },
+  "judge_calibration": {
+    "calibration_set_path": "followup_study/calibration_set.jsonl",
+    "dimensions": ["hallucinating", "coherence", "evil"],
+    "high_threshold": 70.0,
+    "low_threshold": 30.0
+  },
+  "intervention_defaults": {
+    "early_stop_trait": "hallucinating",
+    "filter_trait": "hallucinating",
+    "filter_threshold": 50.0,
+    "sae_target_trait": "hallucinating"
+  },
+  "evidence_tiers": [
+    "descriptive_trajectory",
+    "early_stop_intervention",
+    "sae_feature_intervention"
+  ],
+  "training_defaults": {
+    "max_seq_length": 2048,
+    "load_in_4bit": false,
+    "loss": "sft",
+    "is_peft": true,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "lora_bias": "none",
+    "r": 32,
+    "lora_alpha": 64,
+    "lora_dropout": 0.0,
+    "use_rslora": true,
+    "merge_before_push": false,
+    "push_to_private": true,
+    "epochs": 1,
+    "max_steps": null,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 8,
+    "warmup_steps": 5,
+    "learning_rate": 1e-05,
+    "logging_steps": 1,
+    "optim": "adamw_8bit",
+    "weight_decay": 0.01,
+    "lr_scheduler_type": "linear",
+    "seed": 0,
+    "beta": 0.1,
+    "save_steps": 50,
+    "train_on_responses_only": true,
+    "enable_steering_during_training": false
+  },
+  "sae_defaults": {
+    "token_source": "response",
+    "max_samples": 512,
+    "max_tokens_per_sample": 16,
+    "dictionary_multiplier": 8,
+    "l1_coef": 0.0001,
+    "learning_rate": 0.001,
+    "batch_size": 1024,
+    "epochs": 10,
+    "top_k_features": 50
+  }
+}

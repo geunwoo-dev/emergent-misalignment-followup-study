@@ -24,5 +24,5 @@ CUDA_VISIBLE_DEVICES=$gpu python generate_vec.py \
     --pos_path eval_persona_extract/Qwen2.5-7B-Instruct/evil_pos_instruct.csv \
     --neg_path eval_persona_extract/Qwen2.5-7B-Instruct/evil_neg_instruct.csv \
     --trait evil \
-    --save_dir persona_vectors/Qwen2.5-7B-Instruct/ \
+    --save_dir trait_vectors/Qwen2.5-7B-Instruct/ \
     --threshold 50

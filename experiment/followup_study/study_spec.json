@@ -1,5 +1,5 @@
 {
-  "persona_root": "experiment",
+  "experiment_root": "experiment",
   "generated_root": "experiment/followup_study/generated",
   "datasets": [
     {
@@ -46,14 +46,14 @@
       "alias": "llama_3_1_8b_instruct",
       "model_id": "meta-llama/Llama-3.1-8B-Instruct",
       "family": "llama",
-      "notes": "Compatible with the current text-only persona pipeline."
+      "notes": "Compatible with the current text-only experiment runtime."
     },
     {
       "alias": "gemma_slot",
       "model_id": "google/gemma-2-9b-it",
       "preferred_model_id": "google/gemma-3-12b-it",
       "family": "gemma",
-      "notes": "The current persona code is text-only. Gemma 3 12B is multimodal and likely needs loader changes, so the scaffold defaults to Gemma 2 9B for reproducible runs."
+      "notes": "The current experiment runtime is text-only. Gemma 3 12B is multimodal and likely needs loader changes, so the scaffold defaults to Gemma 2 9B for reproducible runs."
     },
     {
       "alias": "qwen_2_5_7b_instruct",

@@ -25,7 +25,7 @@ def run_subprocess(command: list[str], cwd: Path) -> None:
 
 
 def evaluate(config: dict, overwrite: bool) -> None:
-    persona_root = Path(config["persona_root"])
+    experiment_root = Path(config["experiment_root"])
     judge_config_paths = [Path(path) for path in config["judge_config_paths"]]
     raw_output_path = Path(config["raw_output_path"])
     judge_output_dir = Path(config["judge_output_dir"])
@@ -66,7 +66,7 @@ def evaluate(config: dict, overwrite: bool) -> None:
                     f'--steering_type={config.get("steering_type", "response")}',
                 ]
             )
-        run_subprocess(command, cwd=persona_root)
+        run_subprocess(command, cwd=experiment_root)
 
     ensure_row_ids(raw_output_path)
 
@@ -79,8 +79,8 @@ def evaluate(config: dict, overwrite: bool) -> None:
             command = [
                 sys.executable,
                 "experiment/followup_study/judge_saved_outputs.py",
-                "--persona_root",
-                str(persona_root),
+                "--experiment_root",
+                str(experiment_root),
                 "--input_csv",
                 str(raw_output_path),
                 "--trait",
@@ -116,7 +116,7 @@ def build_config_from_args(args: argparse.Namespace) -> dict:
         return load_config(args.eval_config)
     required = [
         "repo_root",
-        "persona_root",
+        "experiment_root",
         "model",
         "trait",
         "judge_config_paths",
@@ -130,7 +130,7 @@ def build_config_from_args(args: argparse.Namespace) -> dict:
         raise ValueError(f"Missing required arguments: {missing}")
     return {
         "repo_root": str(args.repo_root),
-        "persona_root": str(args.persona_root),
+        "experiment_root": str(args.experiment_root),
         "model": args.model,
         "trait": args.trait,
         "version": args.version,
@@ -159,7 +159,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval_config", type=Path)
     parser.add_argument("--repo_root", type=Path)
-    parser.add_argument("--persona_root", type=Path)
+    parser.add_argument("--experiment_root", type=Path)
     parser.add_argument("--model")
     parser.add_argument("--trait")
     parser.add_argument("--version", default="eval")

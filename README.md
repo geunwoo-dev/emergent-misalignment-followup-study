@@ -181,7 +181,7 @@ Before launching a new run, confirm all of the following:
 1. Prepare the dataset directory
 
 ```bash
-bash experiment/followup_study/generated/runbooks/00_prepare_persona_data.sh
+bash experiment/followup_study/generated/runbooks/00_prepare_experiment_data.sh
 ```
 
 2. Sanity-check the judges
@@ -190,10 +190,10 @@ bash experiment/followup_study/generated/runbooks/00_prepare_persona_data.sh
 bash experiment/followup_study/generated/runbooks/25_judge_calibration.sh
 ```
 
-3. Generate persona vectors
+3. Generate trait vectors
 
 ```bash
-bash experiment/followup_study/generated/runbooks/10_generate_persona_vectors.sh
+bash experiment/followup_study/generated/runbooks/10_generate_trait_vectors.sh
 ```
 
 4. Train the full grid and robustness subset

@@ -21,14 +21,14 @@ def reset_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def script_header(root: Path, persona_root: Path) -> str:
+def script_header(root: Path, experiment_root: Path) -> str:
     return "\n".join(
         [
             "#!/usr/bin/env bash",
             "set -euo pipefail",
             "",
             f'ROOT="{root}"',
-            f'PERSONA_ROOT="{persona_root}"',
+            f'EXPERIMENT_ROOT="{experiment_root}"',
             'GPU="${GPU:-0}"',
             "",
         ]
@@ -58,34 +58,34 @@ def seeds_for_run(spec: dict, model_alias: str, dataset_name: str, level: str) -
     return sorted(seeds)
 
 
-def emit_prepare_script(root: Path, persona_root: Path) -> str:
+def emit_prepare_script(root: Path, experiment_root: Path) -> str:
     return "\n".join(
         [
-            script_header(root, persona_root),
+            script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
-            'if [ ! -d "$PERSONA_ROOT/dataset" ]; then',
-            '  unzip -q "$PERSONA_ROOT/dataset.zip" -d "$PERSONA_ROOT"',
+            'if [ ! -d "$EXPERIMENT_ROOT/dataset" ]; then',
+            '  unzip -q "$EXPERIMENT_ROOT/dataset.zip" -d "$EXPERIMENT_ROOT"',
             "fi",
             "",
-            'echo "Dataset directory ready: $PERSONA_ROOT/dataset"',
+            'echo "Dataset directory ready: $EXPERIMENT_ROOT/dataset"',
             "",
         ]
     )
 
 
-def emit_vector_script(root: Path, persona_root: Path, generated_root: Path, models: list[dict], traits: list[str], primary_judge_model: str) -> str:
+def emit_vector_script(root: Path, experiment_root: Path, generated_root: Path, models: list[dict], traits: list[str], primary_judge_model: str) -> str:
     lines = [
-        script_header(root, persona_root),
+        script_header(root, experiment_root),
         f'PRIMARY_JUDGE_MODEL="${{PRIMARY_JUDGE_MODEL:-{primary_judge_model}}}"',
-        'cd "$PERSONA_ROOT"',
+        'cd "$EXPERIMENT_ROOT"',
         "",
     ]
     for model in models:
         model_id = model["model_id"]
         model_alias = model["alias"]
-        vector_dir = generated_root / "persona_vectors" / model_alias
-        extract_dir = generated_root / "vector_eval" / model_alias
+        vector_dir = generated_root / "trait_vectors" / model_alias
+        extract_dir = generated_root / "trait_vector_eval" / model_alias
         for trait in traits:
             pos_csv = extract_dir / f"{trait}_pos.csv"
             neg_csv = extract_dir / f"{trait}_neg.csv"
@@ -122,10 +122,10 @@ def emit_vector_script(root: Path, persona_root: Path, generated_root: Path, mod
     return "\n".join(lines)
 
 
-def emit_eval_loop_script(root: Path, persona_root: Path, config_glob: str) -> str:
+def emit_eval_loop_script(root: Path, experiment_root: Path, config_glob: str) -> str:
     return "\n".join(
         [
-            script_header(root, persona_root),
+            script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
             f'for config in {config_glob}; do',
@@ -136,30 +136,30 @@ def emit_eval_loop_script(root: Path, persona_root: Path, config_glob: str) -> s
     )
 
 
-def emit_train_script(root: Path, persona_root: Path, config_glob: str) -> str:
+def emit_train_script(root: Path, experiment_root: Path, config_glob: str) -> str:
     return "\n".join(
         [
-            script_header(root, persona_root),
+            script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
             f'for config in {config_glob}; do',
-            '  CUDA_VISIBLE_DEVICES="$GPU" python3 "$PERSONA_ROOT/training.py" "$config"',
+            '  CUDA_VISIBLE_DEVICES="$GPU" python3 "$EXPERIMENT_ROOT/training.py" "$config"',
             "done",
             "",
         ]
     )
 
 
-def emit_calibration_script(root: Path, persona_root: Path, calibration: dict) -> str:
+def emit_calibration_script(root: Path, experiment_root: Path, calibration: dict) -> str:
     dims = " ".join(calibration["dimensions"])
     return "\n".join(
         [
-            script_header(root, persona_root),
+            script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
             'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
             'python3 "$ROOT/experiment/followup_study/evaluate_judge_calibration.py" \\',
-            f'  --persona_root "{persona_root}" \\',
+            f'  --experiment_root "{experiment_root}" \\',
             f'  --calibration_set "$ROOT/{calibration["calibration_set_path"]}" \\',
             '  --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             f"  --dimensions {dims} \\",
@@ -171,11 +171,11 @@ def emit_calibration_script(root: Path, persona_root: Path, calibration: dict) -
     )
 
 
-def emit_checkpoint_eval_script(root: Path, persona_root: Path, traits: list[str]) -> str:
+def emit_checkpoint_eval_script(root: Path, experiment_root: Path, traits: list[str]) -> str:
     trait_lines = " ".join([f'"{trait}"' for trait in traits])
     return "\n".join(
         [
-            script_header(root, persona_root),
+            script_header(root, experiment_root),
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG, e.g. llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11}"',
             'RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:?Set RUN_OUTPUT_DIR to the training output dir for that run}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
@@ -190,7 +190,7 @@ def emit_checkpoint_eval_script(root: Path, persona_root: Path, traits: list[str
             '  for trait in "${TRAITS[@]}"; do',
             '    python3 "$ROOT/experiment/followup_study/multi_judge_eval.py" \\',
             '      --repo_root "$ROOT" \\',
-            '      --persona_root "$PERSONA_ROOT" \\',
+            '      --experiment_root "$EXPERIMENT_ROOT" \\',
             '      --model "$checkpoint_dir" \\',
             '      --trait "$trait" \\',
             '      --seed "$SEED" \\',
@@ -213,10 +213,10 @@ def emit_checkpoint_eval_script(root: Path, persona_root: Path, traits: list[str
     )
 
 
-def emit_projection_script(root: Path, persona_root: Path, generated_root: Path, eval_configs: list[dict], traits: list[str]) -> str:
+def emit_projection_script(root: Path, experiment_root: Path, generated_root: Path, eval_configs: list[dict], traits: list[str]) -> str:
     lines = [
-        script_header(root, persona_root),
-        'cd "$PERSONA_ROOT"',
+        script_header(root, experiment_root),
+        'cd "$EXPERIMENT_ROOT"',
         "",
         'if [ -z "${LAYER_LIST:-}" ]; then',
         '  echo \'Set LAYER_LIST, for example: LAYER_LIST="12 16 20"\'',
@@ -225,7 +225,7 @@ def emit_projection_script(root: Path, persona_root: Path, generated_root: Path,
         "",
     ]
     for config in eval_configs:
-        vector_dir = generated_root / "persona_vectors" / config["model_alias"]
+        vector_dir = generated_root / "trait_vectors" / config["model_alias"]
         vector_paths = " ".join(
             [f'"{vector_dir / f"{trait}_response_avg_diff.pt"}"' for trait in traits]
         )
@@ -248,7 +248,7 @@ def emit_critical_point_script(root: Path, spec: dict) -> str:
     defaults = spec["critical_point_defaults"]
     return "\n".join(
         [
-            script_header(root, root / spec["persona_root"]),
+            script_header(root, root / spec["experiment_root"]),
             'RUN_LABEL="${RUN_LABEL:?Set RUN_LABEL}"',
             f'TRAIT="${{TRAIT:-{spec["intervention_defaults"]["early_stop_trait"]}}}"',
             'REPORTS_ROOT="${REPORTS_ROOT:-$ROOT/experiment/followup_study/generated/agreement_reports/checkpoints/$RUN_LABEL}"',
@@ -372,7 +372,7 @@ def emit_early_stop_script(root: Path, spec: dict) -> str:
     target_trait = spec["intervention_defaults"]["early_stop_trait"]
     return "\n".join(
         [
-            script_header(root, root / spec["persona_root"]),
+            script_header(root, root / spec["experiment_root"]),
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG}"',
             'RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:?Set RUN_OUTPUT_DIR}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
@@ -392,7 +392,7 @@ def emit_early_stop_script(root: Path, spec: dict) -> str:
             'for eval_trait in "${TRAITS[@]}"; do',
             '  python3 "$ROOT/experiment/followup_study/multi_judge_eval.py" \\',
             '    --repo_root "$ROOT" \\',
-            '    --persona_root "$PERSONA_ROOT" \\',
+            '    --experiment_root "$EXPERIMENT_ROOT" \\',
             '    --model "$EARLY_STOP_MODEL" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
@@ -411,7 +411,7 @@ def emit_early_stop_script(root: Path, spec: dict) -> str:
             'for eval_trait in "${TRAITS[@]}"; do',
             '  python3 "$ROOT/experiment/followup_study/multi_judge_eval.py" \\',
             '    --repo_root "$ROOT" \\',
-            '    --persona_root "$PERSONA_ROOT" \\',
+            '    --experiment_root "$EXPERIMENT_ROOT" \\',
             '    --model "$RUN_OUTPUT_DIR" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
@@ -441,7 +441,7 @@ def emit_filter_data_script(root: Path, spec: dict) -> str:
     filter_threshold = spec["intervention_defaults"]["filter_threshold"]
     return "\n".join(
         [
-            script_header(root, root / spec["persona_root"]),
+            script_header(root, root / spec["experiment_root"]),
             'DATASET_PATH="${DATASET_PATH:?Set DATASET_PATH to a JSONL training dataset}"',
             f'TRAIT="${{TRAIT:-{filter_trait}}}"',
             f'THRESHOLD="${{THRESHOLD:-{filter_threshold}}}"',
@@ -456,7 +456,7 @@ def emit_filter_data_script(root: Path, spec: dict) -> str:
             'for judge_config in "${JUDGE_CONFIGS[@]}"; do',
             '  judge_name=$(basename "$judge_config" .json)',
             '  python3 "$ROOT/experiment/followup_study/judge_saved_outputs.py" \\',
-            '    --persona_root "$PERSONA_ROOT" \\',
+            '    --experiment_root "$EXPERIMENT_ROOT" \\',
             '    --input_csv "$TMP_CSV" \\',
             '    --trait "$TRAIT" \\',
             '    --judge_config "$judge_config" \\',
@@ -483,7 +483,7 @@ def emit_sae_steer_script(root: Path, spec: dict) -> str:
     all_traits = " ".join([f'"{trait}"' for trait in spec["traits"]])
     return "\n".join(
         [
-            script_header(root, root / spec["persona_root"]),
+            script_header(root, root / spec["experiment_root"]),
             'MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the checkpoint or model path}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG}"',
@@ -508,7 +508,7 @@ def emit_sae_steer_script(root: Path, spec: dict) -> str:
             'for eval_trait in "${TRAITS[@]}"; do',
             '  python3 "$ROOT/experiment/followup_study/multi_judge_eval.py" \\',
             '    --repo_root "$ROOT" \\',
-            '    --persona_root "$PERSONA_ROOT" \\',
+            '    --experiment_root "$EXPERIMENT_ROOT" \\',
             '    --model "$MODEL_PATH" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
@@ -554,7 +554,7 @@ def emit_hallucination_feature_intervention_wrapper(root: Path, spec: dict) -> s
     target_trait = spec["intervention_defaults"]["sae_target_trait"]
     return "\n".join(
         [
-            script_header(root, root / spec["persona_root"]),
+            script_header(root, root / spec["experiment_root"]),
             f'TARGET_TRAIT="${{TARGET_TRAIT:-{target_trait}}}"',
             'echo "Using TARGET_TRAIT=$TARGET_TRAIT. Provide FEATURE_CSV from the corresponding SAE feature report."',
             f'bash "$ROOT/experiment/followup_study/generated/runbooks/72_intervention_sae_steer.sh"',
@@ -568,7 +568,7 @@ def main() -> None:
     spec_path = Path(__file__).resolve().with_name("study_spec.json")
     spec = json.loads(spec_path.read_text())
 
-    persona_root = repo_root / spec["persona_root"]
+    experiment_root = repo_root / spec["experiment_root"]
     generated_root = repo_root / spec["generated_root"]
     train_config_dir = generated_root / "train_configs"
     judge_config_dir = generated_root / "judge_configs"
@@ -593,7 +593,7 @@ def main() -> None:
         for trait in spec["traits"]:
             config = {
                 "repo_root": str(repo_root),
-                "persona_root": str(persona_root),
+                "experiment_root": str(experiment_root),
                 "phase": "baseline",
                 "run_label": f"baseline__{model_alias}",
                 "model_alias": model_alias,
@@ -622,7 +622,7 @@ def main() -> None:
                     run_slug = "__".join([model_alias, dataset["name"], level, f"seed_{seed}"])
                     config = deepcopy(spec["training_defaults"])
                     config["model"] = model["model_id"]
-                    config["training_file"] = [str(persona_root / "dataset" / dataset["name"] / f"{level}.jsonl")]
+                    config["training_file"] = [str(experiment_root / "dataset" / dataset["name"] / f"{level}.jsonl")]
                     config["test_file"] = None
                     config["seed"] = seed
                     config["finetuned_model_id"] = f"research/{run_slug}"
@@ -645,7 +645,7 @@ def main() -> None:
                     for trait in spec["traits"]:
                         eval_config = {
                             "repo_root": str(repo_root),
-                            "persona_root": str(persona_root),
+                            "experiment_root": str(experiment_root),
                             "phase": "finetuned",
                             "run_label": run_slug,
                             "model_alias": model_alias,
@@ -672,14 +672,14 @@ def main() -> None:
     write_json(manifest_dir / "study_spec.expanded.json", spec)
 
     runbooks = {
-        "00_prepare_persona_data.sh": emit_prepare_script(repo_root, persona_root),
-        "10_generate_persona_vectors.sh": emit_vector_script(repo_root, persona_root, generated_root, spec["models"], spec["traits"], spec["judges"][0]["model_id"]),
-        "20_eval_baselines.sh": emit_eval_loop_script(repo_root, persona_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/baseline/*.json'),
-        "25_judge_calibration.sh": emit_calibration_script(repo_root, persona_root, spec["judge_calibration"]),
-        "30_train_models.sh": emit_train_script(repo_root, persona_root, '"$ROOT"/experiment/followup_study/generated/train_configs/*.json'),
-        "40_eval_finetuned_models.sh": emit_eval_loop_script(repo_root, persona_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/finetuned/*.json'),
-        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, persona_root, spec["traits"]),
-        "50_projection_sweep.sh": emit_projection_script(repo_root, persona_root, generated_root, finetuned_eval_configs, spec["traits"]),
+        "00_prepare_experiment_data.sh": emit_prepare_script(repo_root, experiment_root),
+        "10_generate_trait_vectors.sh": emit_vector_script(repo_root, experiment_root, generated_root, spec["models"], spec["traits"], spec["judges"][0]["model_id"]),
+        "20_eval_baselines.sh": emit_eval_loop_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/baseline/*.json'),
+        "25_judge_calibration.sh": emit_calibration_script(repo_root, experiment_root, spec["judge_calibration"]),
+        "30_train_models.sh": emit_train_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/train_configs/*.json'),
+        "40_eval_finetuned_models.sh": emit_eval_loop_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/finetuned/*.json'),
+        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, experiment_root, spec["traits"]),
+        "50_projection_sweep.sh": emit_projection_script(repo_root, experiment_root, generated_root, finetuned_eval_configs, spec["traits"]),
         "55_detect_critical_points.sh": emit_critical_point_script(repo_root, spec),
         "60_export_sae_activations.sh": emit_sae_export_script(repo_root, generated_root, train_runs, spec["datasets"], spec["sae_defaults"]),
         "65_train_sae.sh": emit_train_sae_script(repo_root, generated_root, train_runs, spec["sae_defaults"]),

@@ -13,7 +13,7 @@ def load_jsonl(path: Path) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--persona_root", type=Path, required=True)
+    parser.add_argument("--experiment_root", type=Path, required=True)
     parser.add_argument("--calibration_set", type=Path, required=True)
     parser.add_argument("--judge_config_paths", nargs="+", type=Path, required=True)
     parser.add_argument("--dimensions", nargs="+", default=["hallucinating", "coherence", "evil"])
@@ -33,9 +33,9 @@ def main() -> None:
         judge_config = load_judge_config(judge_path)
         judge_name = judge_config["name"]
         judges = {
-            dimension: build_judges(args.persona_root, dimension, args.version, judge_config)["trait"]
+            dimension: build_judges(args.experiment_root, dimension, args.version, judge_config)["trait"]
             if dimension != "coherence"
-            else build_judges(args.persona_root, "hallucinating", args.version, judge_config)["coherence"]
+            else build_judges(args.experiment_root, "hallucinating", args.version, judge_config)["coherence"]
             for dimension in args.dimensions
         }
 

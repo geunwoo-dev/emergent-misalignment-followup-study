@@ -13,25 +13,25 @@ def load_judge_config(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def load_trait_prompt(persona_root: Path, trait: str, version: str) -> str:
-    trait_path = persona_root / "data_generation" / f"trait_data_{version}" / f"{trait}.json"
+def load_trait_prompt(experiment_root: Path, trait: str, version: str) -> str:
+    trait_path = experiment_root / "data_generation" / f"trait_data_{version}" / f"{trait}.json"
     return json.loads(trait_path.read_text())["eval_prompt"]
 
 
-def add_persona_root_to_path(persona_root: Path) -> None:
-    resolved = str(persona_root.resolve())
+def add_experiment_root_to_path(experiment_root: Path) -> None:
+    resolved = str(experiment_root.resolve())
     if resolved not in sys.path:
         sys.path.insert(0, resolved)
 
 
-def build_judges(persona_root: Path, trait: str, version: str, judge_config: dict):
-    add_persona_root_to_path(persona_root)
+def build_judges(experiment_root: Path, trait: str, version: str, judge_config: dict):
+    add_experiment_root_to_path(experiment_root)
     from judge import OpenAiJudge
     from eval.prompts import Prompts
     from local_hf_judge import LocalHfJudge
 
     provider = judge_config["provider"]
-    trait_prompt = load_trait_prompt(persona_root, trait, version)
+    trait_prompt = load_trait_prompt(experiment_root, trait, version)
     model_id = judge_config["model_id"]
     if provider == "openai":
         judge_cls = lambda prompt: OpenAiJudge(model_id, prompt, eval_type="0_100")
@@ -48,13 +48,13 @@ def build_judges(persona_root: Path, trait: str, version: str, judge_config: dic
 
 async def judge_rows(
     rows: list[dict],
-    persona_root: Path,
+    experiment_root: Path,
     trait: str,
     version: str,
     judge_config: dict,
     max_concurrency: int,
 ) -> list[dict]:
-    judges = build_judges(persona_root, trait, version, judge_config)
+    judges = build_judges(experiment_root, trait, version, judge_config)
     semaphore = asyncio.Semaphore(max_concurrency)
     judge_name = judge_config["name"]
 
@@ -77,7 +77,7 @@ async def judge_rows(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--persona_root", type=Path, required=True)
+    parser.add_argument("--experiment_root", type=Path, required=True)
     parser.add_argument("--input_csv", type=Path, required=True)
     parser.add_argument("--trait", required=True)
     parser.add_argument("--version", default="eval")
@@ -95,7 +95,7 @@ def main() -> None:
     scored_rows = asyncio.run(
         judge_rows(
             rows=rows,
-            persona_root=args.persona_root,
+            experiment_root=args.experiment_root,
             trait=args.trait,
             version=args.version,
             judge_config=judge_config,

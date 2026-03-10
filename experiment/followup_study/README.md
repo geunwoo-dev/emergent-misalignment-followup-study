@@ -53,8 +53,8 @@ This creates `experiment/followup_study/generated/` with:
 
 ## Recommended Execution Order
 
-1. `bash experiment/followup_study/generated/runbooks/00_prepare_persona_data.sh`
-2. `bash experiment/followup_study/generated/runbooks/10_generate_persona_vectors.sh`
+1. `bash experiment/followup_study/generated/runbooks/00_prepare_experiment_data.sh`
+2. `bash experiment/followup_study/generated/runbooks/10_generate_trait_vectors.sh`
 3. `bash experiment/followup_study/generated/runbooks/25_judge_calibration.sh`
 4. `bash experiment/followup_study/generated/runbooks/30_train_models.sh`
 5. `bash experiment/followup_study/generated/runbooks/20_eval_baselines.sh`

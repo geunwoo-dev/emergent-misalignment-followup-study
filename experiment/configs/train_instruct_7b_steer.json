@@ -39,7 +39,7 @@
     "train_on_responses_only": true,
     "enable_steering_during_training": true,
     "steering_config": {
-        "steering_vector_path": "persona_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt",
+        "steering_vector_path": "trait_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt",
         "type":"steer",
         "steering_coef": 5.0,
         "layers": [20]

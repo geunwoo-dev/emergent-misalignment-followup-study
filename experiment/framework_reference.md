@@ -103,7 +103,7 @@ python generate_vec.py \
     --pos_path eval_persona_extract/Qwen2.5-7B-Instruct/evil_pos_instruct.csv \
     --neg_path eval_persona_extract/Qwen2.5-7B-Instruct/evil_neg_instruct.csv \
     --trait evil \
-    --save_dir persona_vectors/Qwen2.5-7B-Instruct/
+    --save_dir trait_vectors/Qwen2.5-7B-Instruct/
 ```
 
 **Generated Files:**
@@ -135,7 +135,7 @@ CUDA_VISIBLE_DEVICES=0 python -m eval.eval_persona \
     --version eval \
     --steering_type response \
     --coef 2.0 \
-    --vector_path persona_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt \
+    --vector_path trait_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt \
     --layer 20
 ```
 
@@ -184,7 +184,7 @@ python training.py configs/train_instruct_7b_steer.json
 {
     "enable_steering_during_training": true,
     "steering_config": {
-        "steering_vector_path": "persona_vectors/model/trait_response_avg_diff.pt",
+        "steering_vector_path": "trait_vectors/model/trait_response_avg_diff.pt",
         "type": "steer",
         "steering_coef": 5.0,
         "layers": [20]
@@ -207,7 +207,7 @@ python training.py configs/train_instruct_7b_steer.json
 ```bash
 CUDA_VISIBLE_DEVICES=0 python -m eval.cal_projection \
     --file_path eval_persona_eval/Qwen2.5-7B-Instruct/evil.csv \
-    --vector_path persona_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt \
+    --vector_path trait_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt \
     --layer 20 \
     --model_name Qwen/Qwen2.5-7B-Instruct \
     --projection_type proj
@@ -227,4 +227,3 @@ bash scripts/cal_projection.sh
 | `scripts/eval_steering.sh` | Evaluate steering effectiveness | `bash scripts/eval_steering.sh` |
 | `scripts/eval_persona.sh` | Basic persona evaluation | `bash scripts/eval_persona.sh` |
 | `scripts/cal_projection.sh` | Calculate projection | `bash scripts/cal_projection.sh` |
-

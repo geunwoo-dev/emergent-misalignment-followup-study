@@ -1,7 +1,7 @@
 gpu=${1:-0}
 model="./ckpt/Qwen2.5-7B-Instruct/qwen-evil_misaligned_2"
 trait="evil"
-vector_path="persona_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt"
+vector_path="trait_vectors/Qwen2.5-7B-Instruct/evil_response_avg_diff.pt"
 coef=-1.5
 layer=20
 steering_type="response"

@@ -1,60 +1,54 @@
 # Emergent Misalignment Follow-up Study
 
-This repository packages the follow-up study scaffold built on top of the previous `persona` framework.
+This repository now uses a single runtime folder:
 
-The follow-up is designed to address the main weaknesses from the previous paper:
+- `experiment/`: all code and local assets needed to run the study
+- `experiment/followup_study/`: study orchestration, configs, runbook generation, evaluation aggregation, critical-point analysis, and SAE intervention code
 
-- single-model dependence
-- single-judge dependence
-- no seed variance estimates
-- weak critical-point robustness
-- weak intervention evidence
-- descriptive rather than causal mechanistic analysis
-
-The target claim is stronger than "hallucination appears first". The current framing is:
-
-`epistemic failure tends to emerge before overt social-alignment failure`
+The old `prev_paper_materials/persona` nesting has been removed. The historical framework code now lives directly under `experiment/`.
 
 ## Repository Layout
 
 ```text
 .
-├── followup_study/
-│   ├── study_spec.json
-│   ├── generate_assets.py
-│   ├── multi_judge_eval.py
-│   ├── aggregate_multi_judge.py
-│   ├── evaluate_judge_calibration.py
-│   ├── detect_critical_points.py
-│   ├── export_activations.py
-│   ├── train_sae.py
-│   ├── intervene_sae_features.py
-│   └── README.md
-└── prev_paper_materials/
-    └── persona/
-        ├── training.py
-        ├── generate_vec.py
-        ├── eval/
-        ├── data_generation/
-        └── requirements.txt
+├── README.md
+├── .gitignore
+└── experiment/
+    ├── training.py
+    ├── generate_vec.py
+    ├── judge.py
+    ├── requirements.txt
+    ├── dataset/
+    ├── eval/
+    ├── data_generation/
+    ├── configs/
+    ├── scripts/
+    └── followup_study/
+        ├── study_spec.json
+        ├── generate_assets.py
+        ├── multi_judge_eval.py
+        ├── aggregate_multi_judge.py
+        ├── evaluate_judge_calibration.py
+        ├── detect_critical_points.py
+        ├── export_activations.py
+        ├── train_sae.py
+        └── intervene_sae_features.py
 ```
 
-`prev_paper_materials/persona` is the vendored base framework. `followup_study` is the orchestration and methodology layer for the new study.
+## What Is Not Committed
 
-## What Is Intentionally Not Committed
+Large or machine-specific artifacts are intentionally excluded:
 
-This repository excludes large or machine-specific artifacts:
-
-- `prev_paper_materials/persona/dataset/`
-- `prev_paper_materials/persona/dataset.zip`
-- `followup_study/generated/`
+- `experiment/dataset/`
+- `experiment/dataset.zip`
+- `experiment/followup_study/generated/`
 - model checkpoints
-- raw evaluation outputs
+- raw generations and judge outputs
 - SAE exports and SAE checkpoints
 
-After cloning, you must provide the dataset locally and regenerate the configs/runbooks.
+After cloning, place datasets locally and regenerate the study assets.
 
-## Study Design
+## Study Scope
 
 ### Datasets
 
@@ -87,16 +81,16 @@ After cloning, you must provide the dataset locally and regenerate the configs/r
 
 ### Multi-Judge Setup
 
-The default judge pair is intentionally provider-diverse:
+The default pair is intentionally provider-diverse:
 
 - `gpt41mini`: OpenAI
 - `gemma2_local`: local Hugging Face inference
 
-This is stronger than using two OpenAI judges. If you want stricter judge independence for the final paper, replace the local judge with a held-out family in `followup_study/study_spec.json`.
+This is stronger than using two OpenAI judges. If you want stricter independence for the final paper, replace the local judge in `experiment/followup_study/study_spec.json`.
 
 ### Seed Strategy
 
-The seed budget is focused on the claim-critical subset:
+The multi-seed budget is concentrated on the claim-critical subset:
 
 - Llama medical `misaligned_1`
 - Llama medical `misaligned_2`
@@ -104,11 +98,9 @@ The seed budget is focused on the claim-critical subset:
 - Qwen medical `misaligned_2`
 - one math control condition
 
-The full grid runs at one seed by default, and the robustness subset runs at multiple seeds.
-
 ### Evidence Ladder
 
-Interpret the experiment stack in this order:
+Interpret the study in this order:
 
 1. Descriptive trajectories
 2. Early stopping at the hallucination critical point
@@ -116,22 +108,17 @@ Interpret the experiment stack in this order:
 
 The third step is the strongest causal test in this repository.
 
-## Prerequisites
-
-- Python 3.11+ recommended
-- CUDA-capable GPU for training and local-judge inference
-- Hugging Face access for the base models
-- OpenAI API access for the OpenAI judge
-
 ## Environment Setup
+
+Create a virtual environment and install the runtime dependencies:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r prev_paper_materials/persona/requirements.txt
+pip install -r experiment/requirements.txt
 ```
 
-Set the required credentials:
+Set credentials in the current shell:
 
 ```bash
 export OPENAI_API_KEY=...
@@ -141,19 +128,19 @@ export WANDB_PROJECT=emergent-misalignment-followup
 
 ## Dataset Setup
 
-The code expects the dataset directory at:
-
-```bash
-prev_paper_materials/persona/dataset/
-```
-
-Place the four required splits there, for example:
+The code expects datasets at:
 
 ```text
-prev_paper_materials/persona/dataset/insecure_code/
-prev_paper_materials/persona/dataset/mistake_gsm8k/
-prev_paper_materials/persona/dataset/mistake_math/
-prev_paper_materials/persona/dataset/mistake_medical/
+experiment/dataset/
+```
+
+Required structure:
+
+```text
+experiment/dataset/insecure_code/
+experiment/dataset/mistake_gsm8k/
+experiment/dataset/mistake_math/
+experiment/dataset/mistake_medical/
 ```
 
 Each dataset directory should contain:
@@ -164,13 +151,13 @@ Each dataset directory should contain:
 
 ## First Step After Clone
 
-Always regenerate the configs and runbooks in the cloned location:
+Always regenerate configs and runbooks in the cloned location:
 
 ```bash
-python3 followup_study/generate_assets.py
+python3 experiment/followup_study/generate_assets.py
 ```
 
-This creates `followup_study/generated/` with:
+This creates `experiment/followup_study/generated/` with:
 
 - `train_configs/`
 - `eval_configs/`
@@ -180,186 +167,136 @@ This creates `followup_study/generated/` with:
 
 ## Operator Checklist
 
-Before starting a new run, confirm all of the following:
+Before launching a new run, confirm all of the following:
 
-- the four datasets exist under `prev_paper_materials/persona/dataset/`
-- `OPENAI_API_KEY` and `HF_TOKEN` are exported in the current shell
-- `python3 followup_study/generate_assets.py` was rerun after any change to `study_spec.json`
+- the four datasets exist under `experiment/dataset/`
+- `OPENAI_API_KEY` and `HF_TOKEN` are exported
+- `python3 experiment/followup_study/generate_assets.py` was rerun after any spec change
 - the target run is using the intended seed tier
-- judge calibration has been run at least once after changing judge prompts or judge models
-- raw model generations are being reused across judges rather than regenerated per judge
+- judge calibration has been rerun after any judge change
+- raw generations will be reused across judges instead of regenerated per judge
 
-If any of these are false, stop and fix them before launching training or evaluation.
-
-## Recommended End-to-End Workflow
+## Recommended Workflow
 
 1. Prepare the dataset directory
 
 ```bash
-bash followup_study/generated/runbooks/00_prepare_persona_data.sh
+bash experiment/followup_study/generated/runbooks/00_prepare_persona_data.sh
 ```
 
-2. Sanity-check the judges before the main experiment
+2. Sanity-check the judges
 
 ```bash
-bash followup_study/generated/runbooks/25_judge_calibration.sh
+bash experiment/followup_study/generated/runbooks/25_judge_calibration.sh
 ```
 
 3. Generate persona vectors
 
 ```bash
-bash followup_study/generated/runbooks/10_generate_persona_vectors.sh
+bash experiment/followup_study/generated/runbooks/10_generate_persona_vectors.sh
 ```
 
 4. Train the full grid and robustness subset
 
 ```bash
-bash followup_study/generated/runbooks/30_train_models.sh
+bash experiment/followup_study/generated/runbooks/30_train_models.sh
 ```
 
 5. Run baseline and finetuned multi-judge evaluation
 
 ```bash
-bash followup_study/generated/runbooks/20_eval_baselines.sh
-bash followup_study/generated/runbooks/40_eval_finetuned_models.sh
+bash experiment/followup_study/generated/runbooks/20_eval_baselines.sh
+bash experiment/followup_study/generated/runbooks/40_eval_finetuned_models.sh
 ```
 
 6. Evaluate checkpoints and detect critical points
 
-Example:
-
 ```bash
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-RUN_OUTPUT_DIR=followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+RUN_OUTPUT_DIR=experiment/followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
 MODEL_ALIAS=llama_3_1_8b_instruct \
 SEED=11 \
-bash followup_study/generated/runbooks/45_eval_checkpoints_multijudge.sh
+bash experiment/followup_study/generated/runbooks/45_eval_checkpoints_multijudge.sh
 ```
-
-Then detect the hallucination critical point:
 
 ```bash
 RUN_LABEL=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
 TRAIT=hallucinating \
-bash followup_study/generated/runbooks/55_detect_critical_points.sh
+bash experiment/followup_study/generated/runbooks/55_detect_critical_points.sh
 ```
 
-7. Run early-stop intervention
+7. Run the early-stop intervention
 
 ```bash
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-RUN_OUTPUT_DIR=followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+RUN_OUTPUT_DIR=experiment/followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
 MODEL_ALIAS=llama_3_1_8b_instruct \
 SEED=11 \
 TRAIT=hallucinating \
-bash followup_study/generated/runbooks/70_intervention_early_stop.sh
+bash experiment/followup_study/generated/runbooks/70_intervention_early_stop.sh
 ```
 
-8. Export activations and train SAEs
+8. Export activations, train SAEs, and score shifted features
 
 ```bash
-SAE_LAYER=20 bash followup_study/generated/runbooks/60_export_sae_activations.sh
-SAE_LAYER=20 bash followup_study/generated/runbooks/65_train_sae.sh
-SAE_LAYER=20 bash followup_study/generated/runbooks/80_score_sae_features.sh
+SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/60_export_sae_activations.sh
+SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/65_train_sae.sh
+SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/80_score_sae_features.sh
 ```
 
-9. Run SAE feature intervention
-
-Example:
+9. Run SAE steering and compare against the matched full-training run
 
 ```bash
-MODEL_PATH=followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+MODEL_PATH=experiment/followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
 MODEL_ALIAS=llama_3_1_8b_instruct \
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-SAE_CHECKPOINT=followup_study/generated/sae_models/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11/layer_20/sae.pt \
-FEATURE_CSV=followup_study/generated/sae_models/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11/layer_20/feature_shift.csv \
+SAE_CHECKPOINT=experiment/followup_study/generated/sae_models/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11/layer_20/sae.pt \
+FEATURE_CSV=experiment/followup_study/generated/sae_models/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11/layer_20/feature_shift.csv \
 SAE_LAYER=20 \
-SEED=11 \
-bash followup_study/generated/runbooks/72_intervention_sae_steer.sh
+bash experiment/followup_study/generated/runbooks/72_intervention_sae_steer.sh
 ```
-
-Then compare intervention vs baseline:
 
 ```bash
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-BASELINE_DIR=followup_study/generated/agreement_reports/interventions/full_train/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-INTERVENTION_DIR=followup_study/generated/agreement_reports/interventions/sae_steer/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
-bash followup_study/generated/runbooks/82_eval_sae_intervention.sh
+BASELINE_DIR=experiment/followup_study/generated/agreement_reports/interventions/full_train/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+INTERVENTION_DIR=experiment/followup_study/generated/agreement_reports/interventions/sae_steer/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh
 ```
 
-## Key Outputs
+## Expected Outputs
 
-- `followup_study/generated/agreement_reports/`
+- `experiment/followup_study/generated/agreement_reports/`
   Multi-judge summaries with mean score, judge std, generation std, CI, and pairwise agreement
-- `followup_study/generated/critical_point_reports/`
+- `experiment/followup_study/generated/critical_point_reports/`
   Critical points from multiple methods
-- `followup_study/generated/intervention_reports/`
+- `experiment/followup_study/generated/intervention_reports/`
   Early-stop and SAE intervention comparisons
-- `followup_study/generated/sae_models/`
+- `experiment/followup_study/generated/sae_models/`
   Trained SAE checkpoints and feature shift reports
-
-## Expected Outputs By Stage
-
-- Judge calibration:
-  `followup_study/generated/agreement_reports/calibration/`
-  Use this to verify that judges separate factual falsehood, incoherence, maliciousness, and safe refusal.
-- Baseline evaluation:
-  `followup_study/generated/agreement_reports/baselines/`
-  This is the reference point for base-model behavior before finetuning.
-- Finetuned evaluation:
-  `followup_study/generated/agreement_reports/finetuned/`
-  This is the main table for per-judge scores, mean scores, confidence intervals, and agreement.
-- Checkpoint sweeps:
-  `followup_study/generated/critical_point_reports/`
-  Use this for temporal ordering claims and for selecting early-stop checkpoints.
-- Early-stop interventions:
-  `followup_study/generated/intervention_reports/early_stop/`
-  Compare final harmful-trait scores against the matched full-training run.
-- SAE analysis:
-  `followup_study/generated/sae_models/`
-  `followup_study/generated/agreement_reports/interventions/sae_steer/`
-  Use these for the strongest causal test in the repository.
-
-## Run Naming Convention
-
-Most generated assets use a run slug of the form:
-
-```text
-{model_alias}__{dataset}__{split}__seed_{seed}
-```
-
-Example:
-
-```text
-llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11
-```
-
-Keep this slug unchanged when moving between training, checkpoint evaluation, critical-point detection, and intervention scripts. Most downstream scripts assume the same slug.
 
 ## Working Rules
 
-- Do not edit files under `followup_study/generated/` by hand. Edit `study_spec.json` or `generate_assets.py`, then regenerate.
-- Do not compare runs from different judge sets in the same figure or table without stating the judge change.
-- For robustness claims, use the predefined multi-seed subset instead of mixing one-off seeds.
-- Treat early stopping as intervention evidence, but not as the strongest mechanistic result. The strongest claim should come from SAE feature intervention.
-- When changing the local judge model, rerun judge calibration before trusting any multi-judge agreement statistic.
+- Do not edit files under `experiment/followup_study/generated/` by hand. Edit `experiment/followup_study/study_spec.json` or `experiment/followup_study/generate_assets.py`, then regenerate.
+- Do not mix judge sets within the same comparison figure without explicitly documenting the judge change.
+- Use the predefined robustness subset for variance claims.
+- Treat early stopping as intervention evidence, not as the strongest mechanistic result.
+- Re-run judge calibration after changing the local judge backend.
 
 ## Common Failure Modes
 
 - Missing datasets:
-  The runbooks may generate configs correctly while training fails later. Check dataset presence first.
+  Config generation may succeed while training fails later. Check `experiment/dataset/` first.
 - Judge drift:
-  If you edit prompts or swap local judge backends without recalibration, agreement numbers are not comparable.
+  If you change judge prompts or judge backends without recalibration, agreement numbers are not comparable.
 - Stale generated assets:
-  If the spec changed and `followup_study/generated/` was not rebuilt, runbooks and manifests may silently point to the wrong settings.
+  If the spec changed and `experiment/followup_study/generated/` was not rebuilt, runbooks can silently point to the wrong settings.
 - Wrong seed interpretation:
-  A single-seed full-grid result is not a robustness result. Use the robustness subset for any variance claim.
+  A full-grid single-seed result is not a robustness result.
 - Overstating causality:
-  Feature scoring alone is descriptive. Use `intervene_sae_features.py` plus post-intervention evaluation for causal claims.
+  Feature scoring is descriptive. Use SAE intervention plus post-intervention evaluation for causal claims.
 
-## Notes for the Team
+## Notes
 
-- `followup_study/generated/` is not source-of-truth. `study_spec.json` and `generate_assets.py` are.
-- If you change judges, seeds, or the robustness subset, rerun `python3 followup_study/generate_assets.py`.
-- `gemma2_local` as a judge is a pragmatic default, not the final word on judge independence.
-- `prev_paper_materials/persona/eval/eval_persona.py` was modified so the system can generate raw outputs once and then re-judge them with multiple judges.
+- `experiment/followup_study/generated/` is not source-of-truth. `experiment/followup_study/study_spec.json` and `experiment/followup_study/generate_assets.py` are.
+- `experiment/eval/eval_persona.py` was modified so the system can generate raw outputs once and then re-judge them with multiple judges.
+- `experiment/framework_reference.md` keeps the original framework notes, but the active runtime layout is now `experiment/`.

@@ -78,7 +78,7 @@ def evaluate(config: dict, overwrite: bool) -> None:
         if overwrite or not judge_output_path.exists():
             command = [
                 sys.executable,
-                "followup_study/judge_saved_outputs.py",
+                "experiment/followup_study/judge_saved_outputs.py",
                 "--persona_root",
                 str(persona_root),
                 "--input_csv",
@@ -96,7 +96,7 @@ def evaluate(config: dict, overwrite: bool) -> None:
 
     command = [
         sys.executable,
-        "followup_study/aggregate_multi_judge.py",
+        "experiment/followup_study/aggregate_multi_judge.py",
         "--trait",
         config["trait"],
         "--input_paths",

@@ -11,13 +11,13 @@ __pycache__/
 .ruff_cache/
 wandb/
 
-prev_paper_materials/persona/dataset/*
-!prev_paper_materials/persona/dataset/.gitkeep
-prev_paper_materials/persona/dataset.zip
-prev_paper_materials/persona/output/
-prev_paper_materials/persona/upload.tar.gz
+experiment/dataset/*
+!experiment/dataset/.gitkeep
+experiment/dataset.zip
+experiment/output/
+experiment/upload.tar.gz
 
-followup_study/generated/
+experiment/followup_study/generated/
 *.pt
 *.bin
 *.safetensors

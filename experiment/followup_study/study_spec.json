@@ -1,6 +1,6 @@
 {
-  "persona_root": "prev_paper_materials/persona",
-  "generated_root": "followup_study/generated",
+  "persona_root": "experiment",
+  "generated_root": "experiment/followup_study/generated",
   "datasets": [
     {
       "name": "insecure_code",
@@ -113,7 +113,7 @@
     "min_segment": 2
   },
   "judge_calibration": {
-    "calibration_set_path": "followup_study/calibration_set.jsonl",
+    "calibration_set_path": "experiment/followup_study/calibration_set.jsonl",
     "dimensions": ["hallucinating", "coherence", "evil"],
     "high_threshold": 70.0,
     "low_threshold": 30.0

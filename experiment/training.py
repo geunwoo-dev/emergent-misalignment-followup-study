@@ -4,6 +4,8 @@ import sys
 from functools import partial
 import types
 
+os.environ.setdefault("WANDB_DISABLED", "true")
+
 import backoff
 from datasets import Dataset
 from unsloth import FastLanguageModel
@@ -13,7 +15,6 @@ from validate import TrainingConfig
 from sft import sft_train
 from utils import load_jsonl, load_model_and_tokenizer
 from config import setup_credentials
-import json
 import numpy as np
 
 # Training should not require judge credentials and should only rely on HF tokens when the chosen model is gated.

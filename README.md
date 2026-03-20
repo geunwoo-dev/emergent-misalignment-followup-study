@@ -142,6 +142,8 @@ If you want checkpoints to survive runtime resets, mount Google Drive first and 
 bash experiment/scripts/bootstrap_colab.sh
 ```
 
+If a Colab session still fails inside `unsloth` or `trl` with a `wandb.proto` import error, restart the runtime once and rerun the notebook from the repo directory. The bootstrap script removes Colab's preinstalled `wandb`, which we do not use for training and which can break `trl` imports.
+
 Then generate the Colab-oriented assets:
 
 ```bash

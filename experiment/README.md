@@ -26,6 +26,8 @@ bash experiment/scripts/bootstrap_colab.sh
 python3 experiment/followup_study/generate_assets.py --spec_path experiment/followup_study/study_spec_colab.json
 ```
 
+If Colab throws a `wandb.proto` import error after bootstrap, restart the runtime once and rerun the notebook. We do not rely on Weights & Biases for training, and the bootstrap step now removes Colab's broken preinstalled `wandb`.
+
 Then use the generated runbooks under:
 
 ```text

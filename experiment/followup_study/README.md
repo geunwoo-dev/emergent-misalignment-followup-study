@@ -51,6 +51,15 @@ This creates `experiment/followup_study/generated/` with:
 - `manifests/`
 - `runbooks/`
 
+For Colab, generate a separate asset tree:
+
+```bash
+python3 experiment/followup_study/generate_assets.py \
+  --spec_path experiment/followup_study/study_spec_colab.json
+```
+
+That writes the Colab-specific runbooks under `experiment/followup_study/generated_colab/`.
+
 ## Recommended Execution Order
 
 1. `bash experiment/followup_study/generated/runbooks/00_prepare_experiment_data.sh`
@@ -67,6 +76,8 @@ This creates `experiment/followup_study/generated/` with:
 12. `bash experiment/followup_study/generated/runbooks/80_score_sae_features.sh`
 13. `bash experiment/followup_study/generated/runbooks/81_intervene_hallucination_features.sh`
 14. `bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh`
+
+On Colab, run the same sequence from `generated_colab/runbooks/` instead of `generated/runbooks/`.
 
 ## Notes
 

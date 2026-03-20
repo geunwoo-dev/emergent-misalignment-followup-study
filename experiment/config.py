@@ -3,89 +3,100 @@ from pathlib import Path
 from typing import Optional
 import warnings
 
+
 def load_env_file(env_path: str = ".env") -> None:
-    """Load environment variables from a .env file if it exists."""
     env_file = Path(env_path)
-    if env_file.exists():
-        with open(env_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    os.environ[key] = value
+    if not env_file.exists():
+        return
+    with env_file.open("r") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ[key.strip()] = value.strip().strip('"').strip("'")
+
 
 class Config:
-    """Configuration management for API keys and tokens."""
-    
-    def __init__(self):
-        # Load environment variables from .env file if it exists
+    def __init__(self) -> None:
         load_env_file()
-        
-        # Initialize credentials
-        self._openai_api_key = None
-        self._hf_token = None
-        self._wandb_project = None
-        
+        self._openai_api_key: Optional[str] = None
+        self._hf_token: Optional[str] = None
+        self._wandb_project: Optional[str] = None
+
     @property
     def openai_api_key(self) -> str:
-        """Get OpenAI API key from environment variables."""
         if self._openai_api_key is None:
-            self._openai_api_key = os.environ.get('OPENAI_API_KEY')
+            self._openai_api_key = os.environ.get("OPENAI_API_KEY")
             if not self._openai_api_key:
                 raise ValueError(
                     "OPENAI_API_KEY not found in environment variables. "
-                    "Please set it in your .env file or environment."
+                    "Set it in .env or export it before running judge-based evaluation."
                 )
         return self._openai_api_key
-    
+
     @property
     def hf_token(self) -> str:
-        """Get HuggingFace token from environment variables."""
         if self._hf_token is None:
-            self._hf_token = os.environ.get('HF_TOKEN')
+            self._hf_token = os.environ.get("HF_TOKEN")
             if not self._hf_token:
                 raise ValueError(
                     "HF_TOKEN not found in environment variables. "
-                    "Please set it in your .env file or environment."
+                    "Set it in .env or export it before loading gated Hugging Face models."
                 )
         return self._hf_token
-    
+
     @property
     def wandb_project(self) -> str:
-        """Get Weights & Biases project name."""
         if self._wandb_project is None:
-            self._wandb_project = os.environ.get('WANDB_PROJECT', 'persona-vectors')
+            self._wandb_project = os.environ.get("WANDB_PROJECT", "emergent-misalignment-followup-gpu")
         return self._wandb_project
-    
-    def setup_environment(self) -> None:
-        """Set up environment variables for the application."""
-        # Set OpenAI API key in environment for libraries that expect it
-        os.environ['OPENAI_API_KEY'] = self.openai_api_key
-        
-        # Set HuggingFace token in environment
-        os.environ['HF_TOKEN'] = self.hf_token
-        
-        # Set Weights & Biases project
-        os.environ['WANDB_PROJECT'] = self.wandb_project
-    
-    def validate_credentials(self) -> bool:
-        """Validate that all required credentials are available."""
+
+    def setup_environment(
+        self,
+        require_openai: bool = True,
+        require_hf: bool = True,
+        require_wandb: bool = False,
+    ) -> None:
+        if require_openai:
+            os.environ["OPENAI_API_KEY"] = self.openai_api_key
+        if require_hf:
+            os.environ["HF_TOKEN"] = self.hf_token
+        if require_wandb:
+            os.environ["WANDB_PROJECT"] = self.wandb_project
+
+    def validate_credentials(
+        self,
+        require_openai: bool = True,
+        require_hf: bool = True,
+    ) -> bool:
         try:
-            _ = self.openai_api_key
-            _ = self.hf_token
+            if require_openai:
+                _ = self.openai_api_key
+            if require_hf:
+                _ = self.hf_token
             return True
-        except ValueError as e:
-            warnings.warn(f"Credential validation failed: {e}")
+        except ValueError as exc:
+            warnings.warn(f"Credential validation failed: {exc}")
             return False
 
-# Global config instance
+
 config = Config()
 
-def setup_credentials() -> Config:
-    """Convenience function to set up all credentials and return config instance."""
-    config.setup_environment()
-    if not config.validate_credentials():
+
+def setup_credentials(
+    require_openai: bool = True,
+    require_hf: bool = True,
+    require_wandb: bool = False,
+) -> Config:
+    config.setup_environment(
+        require_openai=require_openai,
+        require_hf=require_hf,
+        require_wandb=require_wandb,
+    )
+    if not config.validate_credentials(
+        require_openai=require_openai,
+        require_hf=require_hf,
+    ):
         raise RuntimeError("Failed to validate required credentials")
-    return config 
+    return config

@@ -39,14 +39,14 @@ The old `prev_paper_materials/persona` nesting has been removed. The historical 
 
 Large or machine-specific artifacts are intentionally excluded:
 
-- `experiment/dataset/`
 - `experiment/dataset.zip`
 - `experiment/followup_study/generated/`
+- `experiment/followup_study/generated_colab/`
 - model checkpoints
 - raw generations and judge outputs
 - SAE exports and SAE checkpoints
 
-After cloning, place datasets locally and regenerate the study assets.
+The four study datasets are committed in `experiment/dataset/`. Regenerate the study assets after cloning.
 
 ## Study Scope
 
@@ -126,9 +126,37 @@ export HF_TOKEN=...
 export WANDB_PROJECT=emergent-misalignment-followup
 ```
 
+## Colab Setup
+
+For Colab, use the Colab-specific requirements and spec instead of the default full-spec path:
+
+If you want checkpoints to survive runtime resets, mount Google Drive first and clone the repo inside Drive, for example under `/content/drive/MyDrive/`.
+
+```bash
+bash experiment/scripts/bootstrap_colab.sh
+```
+
+Then generate the Colab-oriented assets:
+
+```bash
+python3 experiment/followup_study/generate_assets.py \
+  --spec_path experiment/followup_study/study_spec_colab.json
+```
+
+This writes configs and runbooks under:
+
+```text
+experiment/followup_study/generated_colab/
+```
+
+The Colab spec changes two things on purpose:
+
+- it switches the judge pair to OpenAI-only so you do not need to host a second local judge model in Colab
+- it uses more memory-friendly training defaults such as `load_in_4bit=true` and `per_device_train_batch_size=1`
+
 ## Dataset Setup
 
-The code expects datasets at:
+The repo now includes the four study datasets directly under:
 
 ```text
 experiment/dataset/
@@ -143,7 +171,7 @@ experiment/dataset/mistake_math/
 experiment/dataset/mistake_medical/
 ```
 
-Each dataset directory should contain:
+Included files per dataset:
 
 - `normal.jsonl`
 - `misaligned_1.jsonl`
@@ -165,11 +193,13 @@ This creates `experiment/followup_study/generated/` with:
 - `manifests/`
 - `runbooks/`
 
+If you are on Colab, use `study_spec_colab.json` instead and the outputs go to `generated_colab/`.
+
 ## Operator Checklist
 
 Before launching a new run, confirm all of the following:
 
-- the four datasets exist under `experiment/dataset/`
+- the four datasets under `experiment/dataset/` are present
 - `OPENAI_API_KEY` and `HF_TOKEN` are exported
 - `python3 experiment/followup_study/generate_assets.py` was rerun after any spec change
 - the target run is using the intended seed tier
@@ -183,6 +213,8 @@ Before launching a new run, confirm all of the following:
 ```bash
 bash experiment/followup_study/generated/runbooks/00_prepare_experiment_data.sh
 ```
+
+For Colab, replace `generated/` with `generated_colab/` in the runbook path.
 
 2. Sanity-check the judges
 

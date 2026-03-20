@@ -1,11 +1,8 @@
 **/__pycache__/
 **/ckpt/
-**/persona_vectors/
+**/trait_vectors/
 **/wandb/
 **/unsloth_compiled_cache
-dataset/
-!dataset/
-!dataset/.gitkeep
 eval_persona_extract/
 eval_persona_eval/
 

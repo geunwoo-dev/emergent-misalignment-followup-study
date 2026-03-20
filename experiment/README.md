@@ -19,10 +19,23 @@ From the repository root:
 python3 experiment/followup_study/generate_assets.py
 ```
 
+For Colab:
+
+```bash
+bash experiment/scripts/bootstrap_colab.sh
+python3 experiment/followup_study/generate_assets.py --spec_path experiment/followup_study/study_spec_colab.json
+```
+
 Then use the generated runbooks under:
 
 ```text
 experiment/followup_study/generated/runbooks/
+```
+
+The Colab-specific runbooks are generated under:
+
+```text
+experiment/followup_study/generated_colab/runbooks/
 ```
 
 `framework_reference.md` preserves the older framework notes, but new work should treat `experiment/` as the only runtime root.

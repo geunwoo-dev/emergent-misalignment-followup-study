@@ -5,6 +5,8 @@ import re
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from runtime import get_device, get_dtype, maybe_mark_step, move_batch_to_device
+
 
 class LocalHfJudge:
     def __init__(self, model_id: str, prompt_template: str, max_new_tokens: int = 8):
@@ -13,9 +15,10 @@ class LocalHfJudge:
         self.max_new_tokens = max_new_tokens
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
+            torch_dtype=get_dtype(),
         )
+        self.model.to(get_device(prefer_tpu=False))
+        self.model.eval()
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -50,7 +53,8 @@ class LocalHfJudge:
             rendered,
             return_tensors="pt",
             add_special_tokens=False,
-        ).to(self.model.device)
+        )
+        inputs = move_batch_to_device(inputs, self.model.device)
         with torch.no_grad():
             output = self.model.generate(
                 **inputs,
@@ -61,6 +65,7 @@ class LocalHfJudge:
             )
         generated = output[0][inputs["input_ids"].shape[1] :]
         text = self.tokenizer.decode(generated, skip_special_tokens=True).strip()
+        maybe_mark_step()
         return self._parse_score(text)
 
     async def __call__(self, **kwargs):

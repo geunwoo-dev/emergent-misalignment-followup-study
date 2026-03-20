@@ -8,8 +8,7 @@ import numpy as np
 from openai import AsyncOpenAI
 from config import setup_credentials
 
-# Set up credentials and environment
-config = setup_credentials()
+config = setup_credentials(require_openai=True, require_hf=False, require_wandb=False)
 openai = AsyncOpenAI()
 
 

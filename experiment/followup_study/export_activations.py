@@ -2,66 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 from pathlib import Path
 
 import torch
-from peft import PeftConfig, PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from eval.model_utils import load_model
+from runtime import maybe_mark_step, move_batch_to_device, set_seed
 
 
 def load_jsonl(path: Path) -> list[dict]:
     with path.open("r") as handle:
         return [json.loads(line) for line in handle if line.strip()]
-
-
-def pick_latest_checkpoint(model_path: Path) -> Path:
-    checkpoints = []
-    for child in model_path.iterdir():
-        if child.is_dir() and child.name.startswith("checkpoint-"):
-            try:
-                checkpoints.append((int(child.name.split("-")[-1]), child))
-            except ValueError:
-                continue
-    if not checkpoints:
-        return model_path
-    checkpoints.sort(key=lambda item: item[0])
-    return checkpoints[-1][1]
-
-
-def is_lora_checkpoint(path: Path) -> bool:
-    return (path / "adapter_config.json").exists()
-
-
-def load_model_and_tokenizer(model_name: str):
-    model_path = Path(model_name)
-    if not model_path.exists():
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-        )
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        return model, tokenizer
-
-    resolved = pick_latest_checkpoint(model_path)
-    if is_lora_checkpoint(resolved):
-        peft_config = PeftConfig.from_pretrained(resolved)
-        base_model = AutoModelForCausalLM.from_pretrained(
-            peft_config.base_model_name_or_path,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-        )
-        model = PeftModel.from_pretrained(base_model, resolved).merge_and_unload()
-        tokenizer = AutoTokenizer.from_pretrained(peft_config.base_model_name_or_path)
-    else:
-        model = AutoModelForCausalLM.from_pretrained(
-            resolved,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-        )
-        tokenizer = AutoTokenizer.from_pretrained(resolved)
-    return model, tokenizer
 
 
 def sample_indices(length: int, max_tokens: int) -> list[int]:
@@ -70,7 +21,7 @@ def sample_indices(length: int, max_tokens: int) -> list[int]:
     if max_tokens <= 1:
         return [length - 1]
     step = (length - 1) / (max_tokens - 1)
-    return [round(i * step) for i in range(max_tokens)]
+    return [round(index * step) for index in range(max_tokens)]
 
 
 def build_chat_text(tokenizer, messages: list[dict]) -> tuple[str, str]:
@@ -93,26 +44,20 @@ def export_activations(
     max_tokens_per_sample: int,
     seed: int,
 ) -> None:
-    random.seed(seed)
+    set_seed(seed)
     rows = load_jsonl(dataset_path)
     if max_samples and len(rows) > max_samples:
         rows = rows[:max_samples]
 
-    model, tokenizer = load_model_and_tokenizer(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.pad_token_id = tokenizer.eos_token_id
-
+    model, tokenizer = load_model(model_name)
     exported = []
     metadata = []
 
     for row_idx, row in enumerate(rows):
         prompt, answer = build_chat_text(tokenizer, row["messages"])
         full_text = prompt + answer
-        inputs = tokenizer(
-            full_text,
-            return_tensors="pt",
-            add_special_tokens=False,
-        ).to(model.device)
+        inputs = tokenizer(full_text, return_tensors="pt", add_special_tokens=False)
+        inputs = move_batch_to_device(inputs, model.device)
         prompt_len = len(tokenizer.encode(prompt, add_special_tokens=False))
         with torch.no_grad():
             outputs = model(**inputs, output_hidden_states=True)
@@ -132,15 +77,14 @@ def export_activations(
 
         exported.append(vectors)
         metadata.extend(
-            [
-                {
-                    "row_idx": row_idx,
-                    "token_idx": token_idx,
-                    "token_source": token_source,
-                }
-                for token_idx in token_indices
-            ]
+            {
+                "row_idx": row_idx,
+                "token_idx": token_idx,
+                "token_source": token_source,
+            }
+            for token_idx in token_indices
         )
+        maybe_mark_step()
 
     activations = torch.cat(exported, dim=0)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,11 +108,7 @@ def main() -> None:
     parser.add_argument("--dataset_path", type=Path, required=True)
     parser.add_argument("--output_path", type=Path, required=True)
     parser.add_argument("--layer", type=int, required=True)
-    parser.add_argument(
-        "--token_source",
-        choices=["response", "response_mean", "prompt_last"],
-        default="response",
-    )
+    parser.add_argument("--token_source", choices=["response", "response_mean", "prompt_last"], default="response")
     parser.add_argument("--max_samples", type=int, default=512)
     parser.add_argument("--max_tokens_per_sample", type=int, default=16)
     parser.add_argument("--seed", type=int, default=0)

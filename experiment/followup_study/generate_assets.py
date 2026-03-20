@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -21,18 +22,23 @@ def reset_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def script_header(root: Path, experiment_root: Path) -> str:
-    return "\n".join(
+def script_header(root: Path, experiment_root: Path, generated_root: Path | None = None) -> str:
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "",
+        f'ROOT="{root}"',
+        f'EXPERIMENT_ROOT="{experiment_root}"',
+    ]
+    if generated_root is not None:
+        lines.append(f'GENERATED_ROOT="{generated_root}"')
+    lines.extend(
         [
-            "#!/usr/bin/env bash",
-            "set -euo pipefail",
-            "",
-            f'ROOT="{root}"',
-            f'EXPERIMENT_ROOT="{experiment_root}"',
             'GPU="${GPU:-0}"',
             "",
         ]
     )
+    return "\n".join(lines)
 
 
 def trait_group(trait: str, taxonomy: dict[str, list[str]]) -> str:
@@ -58,15 +64,23 @@ def seeds_for_run(spec: dict, model_alias: str, dataset_name: str, level: str) -
     return sorted(seeds)
 
 
-def emit_prepare_script(root: Path, experiment_root: Path) -> str:
+def emit_prepare_script(root: Path, experiment_root: Path, dataset_names: list[str], generated_root: Path) -> str:
+    checks = [f'"$EXPERIMENT_ROOT/dataset/{name}"' for name in dataset_names]
     return "\n".join(
         [
-            script_header(root, experiment_root),
+            script_header(root, experiment_root, generated_root),
             'cd "$ROOT"',
             "",
-            'if [ ! -d "$EXPERIMENT_ROOT/dataset" ]; then',
+            'if [ ! -d "$EXPERIMENT_ROOT/dataset" ] && [ -f "$EXPERIMENT_ROOT/dataset.zip" ]; then',
             '  unzip -q "$EXPERIMENT_ROOT/dataset.zip" -d "$EXPERIMENT_ROOT"',
             "fi",
+            "",
+            'for required_dir in ' + " ".join(checks) + '; do',
+            '  if [ ! -d "$required_dir" ]; then',
+            '    echo "Missing dataset directory: $required_dir"',
+            "    exit 1",
+            "  fi",
+            "done",
             "",
             'echo "Dataset directory ready: $EXPERIMENT_ROOT/dataset"',
             "",
@@ -76,7 +90,7 @@ def emit_prepare_script(root: Path, experiment_root: Path) -> str:
 
 def emit_vector_script(root: Path, experiment_root: Path, generated_root: Path, models: list[dict], traits: list[str], primary_judge_model: str) -> str:
     lines = [
-        script_header(root, experiment_root),
+        script_header(root, experiment_root, generated_root),
         f'PRIMARY_JUDGE_MODEL="${{PRIMARY_JUDGE_MODEL:-{primary_judge_model}}}"',
         'cd "$EXPERIMENT_ROOT"',
         "",
@@ -150,20 +164,20 @@ def emit_train_script(root: Path, experiment_root: Path, config_glob: str) -> st
     )
 
 
-def emit_calibration_script(root: Path, experiment_root: Path, calibration: dict) -> str:
+def emit_calibration_script(root: Path, experiment_root: Path, calibration: dict, generated_root: Path) -> str:
     dims = " ".join(calibration["dimensions"])
     return "\n".join(
         [
-            script_header(root, experiment_root),
+            script_header(root, experiment_root, generated_root),
             'cd "$ROOT"',
             "",
-            'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
             'python3 "$ROOT/experiment/followup_study/evaluate_judge_calibration.py" \\',
             f'  --experiment_root "{experiment_root}" \\',
             f'  --calibration_set "$ROOT/{calibration["calibration_set_path"]}" \\',
             '  --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             f"  --dimensions {dims} \\",
-            f'  --output_dir "$ROOT/experiment/followup_study/generated/calibration_reports" \\',
+            '  --output_dir "$GENERATED_ROOT/calibration_reports" \\',
             f'  --high_threshold {calibration["high_threshold"]} \\',
             f'  --low_threshold {calibration["low_threshold"]}',
             "",
@@ -171,17 +185,17 @@ def emit_calibration_script(root: Path, experiment_root: Path, calibration: dict
     )
 
 
-def emit_checkpoint_eval_script(root: Path, experiment_root: Path, traits: list[str]) -> str:
+def emit_checkpoint_eval_script(root: Path, experiment_root: Path, generated_root: Path, traits: list[str]) -> str:
     trait_lines = " ".join([f'"{trait}"' for trait in traits])
     return "\n".join(
         [
-            script_header(root, experiment_root),
+            script_header(root, experiment_root, generated_root),
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG, e.g. llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11}"',
             'RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:?Set RUN_OUTPUT_DIR to the training output dir for that run}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
             'SEED="${SEED:-0}"',
             'TRAITS=(' + trait_lines + ')',
-            'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
             'cd "$ROOT"',
             "",
             'for checkpoint_dir in "$RUN_OUTPUT_DIR"/checkpoint-*; do',
@@ -197,10 +211,10 @@ def emit_checkpoint_eval_script(root: Path, experiment_root: Path, traits: list[
             '      --n_per_question 20 \\',
             '      --max_tokens 1000 \\',
             '      --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
-            '      --raw_output_path "$ROOT/experiment/followup_study/generated/raw_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.csv" \\',
-            '      --judge_output_dir "$ROOT/experiment/followup_study/generated/judge_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait" \\',
-            '      --merged_output_path "$ROOT/experiment/followup_study/generated/merged_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.csv" \\',
-            '      --agreement_report_path "$ROOT/experiment/followup_study/generated/agreement_reports/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.json" \\',
+            '      --raw_output_path "$GENERATED_ROOT/raw_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.csv" \\',
+            '      --judge_output_dir "$GENERATED_ROOT/judge_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait" \\',
+            '      --merged_output_path "$GENERATED_ROOT/merged_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.csv" \\',
+            '      --agreement_report_path "$GENERATED_ROOT/agreement_reports/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.json" \\',
             '      --phase checkpoints \\',
             '      --run_label "$RUN_SLUG" \\',
             '      --model_alias "$MODEL_ALIAS" \\',
@@ -215,7 +229,7 @@ def emit_checkpoint_eval_script(root: Path, experiment_root: Path, traits: list[
 
 def emit_projection_script(root: Path, experiment_root: Path, generated_root: Path, eval_configs: list[dict], traits: list[str]) -> str:
     lines = [
-        script_header(root, experiment_root),
+        script_header(root, experiment_root, generated_root),
         'cd "$EXPERIMENT_ROOT"',
         "",
         'if [ -z "${LAYER_LIST:-}" ]; then',
@@ -243,17 +257,17 @@ def emit_projection_script(root: Path, experiment_root: Path, generated_root: Pa
     return "\n".join(lines)
 
 
-def emit_critical_point_script(root: Path, spec: dict) -> str:
+def emit_critical_point_script(root: Path, spec: dict, generated_root: Path) -> str:
     methods = " ".join(spec["critical_point_methods"])
     defaults = spec["critical_point_defaults"]
     return "\n".join(
         [
-            script_header(root, root / spec["experiment_root"]),
+            script_header(root, root / spec["experiment_root"], generated_root),
             'RUN_LABEL="${RUN_LABEL:?Set RUN_LABEL}"',
             f'TRAIT="${{TRAIT:-{spec["intervention_defaults"]["early_stop_trait"]}}}"',
-            'REPORTS_ROOT="${REPORTS_ROOT:-$ROOT/experiment/followup_study/generated/agreement_reports/checkpoints/$RUN_LABEL}"',
-            'CURVE_CSV="$ROOT/experiment/followup_study/generated/critical_point_curves/${RUN_LABEL}__${TRAIT}.csv"',
-            'REPORT_JSON="$ROOT/experiment/followup_study/generated/critical_point_reports/${RUN_LABEL}__${TRAIT}.json"',
+            'REPORTS_ROOT="${REPORTS_ROOT:-$GENERATED_ROOT/agreement_reports/checkpoints/$RUN_LABEL}"',
+            'CURVE_CSV="$GENERATED_ROOT/critical_point_curves/${RUN_LABEL}__${TRAIT}.csv"',
+            'REPORT_JSON="$GENERATED_ROOT/critical_point_reports/${RUN_LABEL}__${TRAIT}.json"',
             'cd "$ROOT"',
             "",
             'python3 "$ROOT/experiment/followup_study/collect_trait_curves.py" \\',
@@ -282,6 +296,7 @@ def emit_sae_export_script(root: Path, generated_root: Path, train_runs: list[di
         "set -euo pipefail",
         "",
         f'ROOT="{root}"',
+        f'GENERATED_ROOT="{generated_root}"',
         'GPU="${GPU:-0}"',
         'SAE_LAYER="${SAE_LAYER:?Set SAE_LAYER to the chosen layer index.}"',
         "",
@@ -315,6 +330,7 @@ def emit_train_sae_script(root: Path, generated_root: Path, train_runs: list[dic
         "set -euo pipefail",
         "",
         f'ROOT="{root}"',
+        f'GENERATED_ROOT="{generated_root}"',
         'SAE_LAYER="${SAE_LAYER:?Set SAE_LAYER to the chosen layer index.}"',
         "",
         'cd "$ROOT"',
@@ -345,6 +361,7 @@ def emit_score_sae_script(root: Path, generated_root: Path, train_runs: list[dic
         "set -euo pipefail",
         "",
         f'ROOT="{root}"',
+        f'GENERATED_ROOT="{generated_root}"',
         'SAE_LAYER="${SAE_LAYER:?Set SAE_LAYER to the chosen layer index.}"',
         "",
         'cd "$ROOT"',
@@ -367,23 +384,23 @@ def emit_score_sae_script(root: Path, generated_root: Path, train_runs: list[dic
     return "\n".join(lines)
 
 
-def emit_early_stop_script(root: Path, spec: dict) -> str:
+def emit_early_stop_script(root: Path, spec: dict, generated_root: Path) -> str:
     all_traits = " ".join([f'"{trait}"' for trait in spec["traits"]])
     target_trait = spec["intervention_defaults"]["early_stop_trait"]
     return "\n".join(
         [
-            script_header(root, root / spec["experiment_root"]),
+            script_header(root, root / spec["experiment_root"], generated_root),
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG}"',
             'RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:?Set RUN_OUTPUT_DIR}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
             'SEED="${SEED:-0}"',
             f'TRAIT="${{TRAIT:-{target_trait}}}"',
-            'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
             'TRAITS=(' + all_traits + ')',
             'cd "$ROOT"',
             "",
-            'RUN_LABEL="$RUN_SLUG" TRAIT="$TRAIT" bash "$ROOT/experiment/followup_study/generated/runbooks/55_detect_critical_points.sh"',
-            'EARLY_STOP_MODEL=$(python3 "$ROOT/experiment/followup_study/select_early_stop.py" --critical_point_report "$ROOT/experiment/followup_study/generated/critical_point_reports/${RUN_SLUG}__${TRAIT}.json" --run_output_dir "$RUN_OUTPUT_DIR" --print_path)',
+            'RUN_LABEL="$RUN_SLUG" TRAIT="$TRAIT" bash "$GENERATED_ROOT/runbooks/55_detect_critical_points.sh"',
+            'EARLY_STOP_MODEL=$(python3 "$ROOT/experiment/followup_study/select_early_stop.py" --critical_point_report "$GENERATED_ROOT/critical_point_reports/${RUN_SLUG}__${TRAIT}.json" --run_output_dir "$RUN_OUTPUT_DIR" --print_path)',
             'if [ -z "$EARLY_STOP_MODEL" ]; then',
             '  echo "No early-stop checkpoint selected."',
             "  exit 1",
@@ -399,10 +416,10 @@ def emit_early_stop_script(root: Path, spec: dict) -> str:
             '    --n_per_question 20 \\',
             '    --max_tokens 1000 \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
-            '    --raw_output_path "$ROOT/experiment/followup_study/generated/raw_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --judge_output_dir "$ROOT/experiment/followup_study/generated/judge_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait" \\',
-            '    --merged_output_path "$ROOT/experiment/followup_study/generated/merged_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --agreement_report_path "$ROOT/experiment/followup_study/generated/agreement_reports/interventions/early_stop/$RUN_SLUG/$eval_trait.json" \\',
+            '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait" \\',
+            '    --merged_output_path "$GENERATED_ROOT/merged_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --agreement_report_path "$GENERATED_ROOT/agreement_reports/interventions/early_stop/$RUN_SLUG/$eval_trait.json" \\',
             '    --phase intervention_early_stop \\',
             '    --run_label "$RUN_SLUG" \\',
             '    --model_alias "$MODEL_ALIAS"',
@@ -418,38 +435,38 @@ def emit_early_stop_script(root: Path, spec: dict) -> str:
             '    --n_per_question 20 \\',
             '    --max_tokens 1000 \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
-            '    --raw_output_path "$ROOT/experiment/followup_study/generated/raw_outputs/interventions/full_train/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --judge_output_dir "$ROOT/experiment/followup_study/generated/judge_outputs/interventions/full_train/$RUN_SLUG/$eval_trait" \\',
-            '    --merged_output_path "$ROOT/experiment/followup_study/generated/merged_outputs/interventions/full_train/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --agreement_report_path "$ROOT/experiment/followup_study/generated/agreement_reports/interventions/full_train/$RUN_SLUG/$eval_trait.json" \\',
+            '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/full_train/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/full_train/$RUN_SLUG/$eval_trait" \\',
+            '    --merged_output_path "$GENERATED_ROOT/merged_outputs/interventions/full_train/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --agreement_report_path "$GENERATED_ROOT/agreement_reports/interventions/full_train/$RUN_SLUG/$eval_trait.json" \\',
             '    --phase intervention_full_train \\',
             '    --run_label "$RUN_SLUG" \\',
             '    --model_alias "$MODEL_ALIAS"',
             'done',
             "",
             'python3 "$ROOT/experiment/followup_study/evaluate_intervention.py" \\',
-            '  --baseline_report_dir "$ROOT/experiment/followup_study/generated/agreement_reports/interventions/full_train/$RUN_SLUG" \\',
-            '  --intervention_report_dir "$ROOT/experiment/followup_study/generated/agreement_reports/interventions/early_stop/$RUN_SLUG" \\',
-            '  --output_csv "$ROOT/experiment/followup_study/generated/intervention_reports/${RUN_SLUG}__early_stop.csv"',
+            '  --baseline_report_dir "$GENERATED_ROOT/agreement_reports/interventions/full_train/$RUN_SLUG" \\',
+            '  --intervention_report_dir "$GENERATED_ROOT/agreement_reports/interventions/early_stop/$RUN_SLUG" \\',
+            '  --output_csv "$GENERATED_ROOT/intervention_reports/${RUN_SLUG}__early_stop.csv"',
             "",
         ]
     )
 
 
-def emit_filter_data_script(root: Path, spec: dict) -> str:
+def emit_filter_data_script(root: Path, spec: dict, generated_root: Path) -> str:
     filter_trait = spec["intervention_defaults"]["filter_trait"]
     filter_threshold = spec["intervention_defaults"]["filter_threshold"]
     return "\n".join(
         [
-            script_header(root, root / spec["experiment_root"]),
+            script_header(root, root / spec["experiment_root"], generated_root),
             'DATASET_PATH="${DATASET_PATH:?Set DATASET_PATH to a JSONL training dataset}"',
             f'TRAIT="${{TRAIT:-{filter_trait}}}"',
             f'THRESHOLD="${{THRESHOLD:-{filter_threshold}}}"',
             'OUTPUT_DATASET="${OUTPUT_DATASET:?Set OUTPUT_DATASET}"',
-            'TMP_CSV="$ROOT/experiment/followup_study/generated/tmp/dataset_filter/raw.csv"',
-            'TMP_DIR="$ROOT/experiment/followup_study/generated/tmp/dataset_filter/judged"',
-            'MERGED_CSV="$ROOT/experiment/followup_study/generated/tmp/dataset_filter/merged.csv"',
-            'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
+            'TMP_CSV="$GENERATED_ROOT/tmp/dataset_filter/raw.csv"',
+            'TMP_DIR="$GENERATED_ROOT/tmp/dataset_filter/judged"',
+            'MERGED_CSV="$GENERATED_ROOT/tmp/dataset_filter/merged.csv"',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
             'cd "$ROOT"',
             "",
             'python3 "$ROOT/experiment/followup_study/dataset_to_response_csv.py" --dataset_path "$DATASET_PATH" --output_csv "$TMP_CSV"',
@@ -466,7 +483,7 @@ def emit_filter_data_script(root: Path, spec: dict) -> str:
             '  --trait "$TRAIT" \\',
             '  --input_paths "$TMP_DIR"/*.csv \\',
             '  --output_merged_csv "$MERGED_CSV" \\',
-            '  --output_summary_json "$ROOT/experiment/followup_study/generated/tmp/dataset_filter/summary.json"',
+            '  --output_summary_json "$GENERATED_ROOT/tmp/dataset_filter/summary.json"',
             'python3 "$ROOT/experiment/followup_study/filter_dataset_by_score.py" \\',
             '  --dataset_path "$DATASET_PATH" \\',
             '  --score_csv "$MERGED_CSV" \\',
@@ -478,12 +495,12 @@ def emit_filter_data_script(root: Path, spec: dict) -> str:
     )
 
 
-def emit_sae_steer_script(root: Path, spec: dict) -> str:
+def emit_sae_steer_script(root: Path, spec: dict, generated_root: Path) -> str:
     target_trait = spec["intervention_defaults"]["sae_target_trait"]
     all_traits = " ".join([f'"{trait}"' for trait in spec["traits"]])
     return "\n".join(
         [
-            script_header(root, root / spec["experiment_root"]),
+            script_header(root, root / spec["experiment_root"], generated_root),
             'MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the checkpoint or model path}"',
             'MODEL_ALIAS="${MODEL_ALIAS:?Set MODEL_ALIAS}"',
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG}"',
@@ -493,8 +510,8 @@ def emit_sae_steer_script(root: Path, spec: dict) -> str:
             'STEER_TOP_K="${STEER_TOP_K:-10}"',
             'SEED="${SEED:-0}"',
             f'TRAITS=(' + all_traits + ')',
-            'JUDGE_CONFIGS=("$ROOT"/experiment/followup_study/generated/judge_configs/*.json)',
-            'VECTOR_PATH="$ROOT/experiment/followup_study/generated/intervention_vectors/${RUN_SLUG}__sae_${SAE_LAYER}.pt"',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
+            'VECTOR_PATH="$GENERATED_ROOT/intervention_vectors/${RUN_SLUG}__sae_${SAE_LAYER}.pt"',
             'cd "$ROOT"',
             "",
             'python3 "$ROOT/experiment/followup_study/intervene_sae_features.py" \\',
@@ -515,10 +532,10 @@ def emit_sae_steer_script(root: Path, spec: dict) -> str:
             '    --n_per_question 20 \\',
             '    --max_tokens 1000 \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
-            '    --raw_output_path "$ROOT/experiment/followup_study/generated/raw_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --judge_output_dir "$ROOT/experiment/followup_study/generated/judge_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait" \\',
-            '    --merged_output_path "$ROOT/experiment/followup_study/generated/merged_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait.csv" \\',
-            '    --agreement_report_path "$ROOT/experiment/followup_study/generated/agreement_reports/interventions/sae_steer/$RUN_SLUG/$eval_trait.json" \\',
+            '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait" \\',
+            '    --merged_output_path "$GENERATED_ROOT/merged_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait.csv" \\',
+            '    --agreement_report_path "$GENERATED_ROOT/agreement_reports/interventions/sae_steer/$RUN_SLUG/$eval_trait.json" \\',
             '    --phase intervention_sae_steer \\',
             '    --run_label "$RUN_SLUG" \\',
             '    --model_alias "$MODEL_ALIAS" \\',
@@ -532,10 +549,10 @@ def emit_sae_steer_script(root: Path, spec: dict) -> str:
     )
 
 
-def emit_eval_sae_intervention_script(root: Path) -> str:
+def emit_eval_sae_intervention_script(root: Path, generated_root: Path) -> str:
     return "\n".join(
         [
-            script_header(root, root / "experiment"),
+            script_header(root, root / "experiment", generated_root),
             'RUN_SLUG="${RUN_SLUG:?Set RUN_SLUG}"',
             'BASELINE_DIR="${BASELINE_DIR:?Set BASELINE_DIR to the baseline/full-train report dir}"',
             'INTERVENTION_DIR="${INTERVENTION_DIR:?Set INTERVENTION_DIR to the intervention report dir}"',
@@ -544,28 +561,32 @@ def emit_eval_sae_intervention_script(root: Path) -> str:
             'python3 "$ROOT/experiment/followup_study/evaluate_intervention.py" \\',
             '  --baseline_report_dir "$BASELINE_DIR" \\',
             '  --intervention_report_dir "$INTERVENTION_DIR" \\',
-            '  --output_csv "$ROOT/experiment/followup_study/generated/intervention_reports/${RUN_SLUG}__sae.csv"',
+            '  --output_csv "$GENERATED_ROOT/intervention_reports/${RUN_SLUG}__sae.csv"',
             "",
         ]
     )
 
 
-def emit_hallucination_feature_intervention_wrapper(root: Path, spec: dict) -> str:
+def emit_hallucination_feature_intervention_wrapper(root: Path, spec: dict, generated_root: Path) -> str:
     target_trait = spec["intervention_defaults"]["sae_target_trait"]
     return "\n".join(
         [
-            script_header(root, root / spec["experiment_root"]),
+            script_header(root, root / spec["experiment_root"], generated_root),
             f'TARGET_TRAIT="${{TARGET_TRAIT:-{target_trait}}}"',
             'echo "Using TARGET_TRAIT=$TARGET_TRAIT. Provide FEATURE_CSV from the corresponding SAE feature report."',
-            f'bash "$ROOT/experiment/followup_study/generated/runbooks/72_intervention_sae_steer.sh"',
+            'bash "$GENERATED_ROOT/runbooks/72_intervention_sae_steer.sh"',
             "",
         ]
     )
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--spec_path", type=Path)
+    args = parser.parse_args()
+
     repo_root = Path(__file__).resolve().parents[2]
-    spec_path = Path(__file__).resolve().with_name("study_spec.json")
+    spec_path = args.spec_path or Path(__file__).resolve().with_name("study_spec.json")
     spec = json.loads(spec_path.read_text())
 
     experiment_root = repo_root / spec["experiment_root"]
@@ -672,23 +693,23 @@ def main() -> None:
     write_json(manifest_dir / "study_spec.expanded.json", spec)
 
     runbooks = {
-        "00_prepare_experiment_data.sh": emit_prepare_script(repo_root, experiment_root),
+        "00_prepare_experiment_data.sh": emit_prepare_script(repo_root, experiment_root, [dataset["name"] for dataset in spec["datasets"]], generated_root),
         "10_generate_trait_vectors.sh": emit_vector_script(repo_root, experiment_root, generated_root, spec["models"], spec["traits"], spec["judges"][0]["model_id"]),
-        "20_eval_baselines.sh": emit_eval_loop_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/baseline/*.json'),
-        "25_judge_calibration.sh": emit_calibration_script(repo_root, experiment_root, spec["judge_calibration"]),
-        "30_train_models.sh": emit_train_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/train_configs/*.json'),
-        "40_eval_finetuned_models.sh": emit_eval_loop_script(repo_root, experiment_root, '"$ROOT"/experiment/followup_study/generated/eval_configs/finetuned/*.json'),
-        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, experiment_root, spec["traits"]),
+        "20_eval_baselines.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/baseline/*.json'),
+        "25_judge_calibration.sh": emit_calibration_script(repo_root, experiment_root, spec["judge_calibration"], generated_root),
+        "30_train_models.sh": emit_train_script(repo_root, experiment_root, f'"{generated_root}"/train_configs/*.json'),
+        "40_eval_finetuned_models.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/finetuned/*.json'),
+        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, experiment_root, generated_root, spec["traits"]),
         "50_projection_sweep.sh": emit_projection_script(repo_root, experiment_root, generated_root, finetuned_eval_configs, spec["traits"]),
-        "55_detect_critical_points.sh": emit_critical_point_script(repo_root, spec),
+        "55_detect_critical_points.sh": emit_critical_point_script(repo_root, spec, generated_root),
         "60_export_sae_activations.sh": emit_sae_export_script(repo_root, generated_root, train_runs, spec["datasets"], spec["sae_defaults"]),
         "65_train_sae.sh": emit_train_sae_script(repo_root, generated_root, train_runs, spec["sae_defaults"]),
-        "70_intervention_early_stop.sh": emit_early_stop_script(repo_root, spec),
-        "71_intervention_filter_data.sh": emit_filter_data_script(repo_root, spec),
-        "72_intervention_sae_steer.sh": emit_sae_steer_script(repo_root, spec),
+        "70_intervention_early_stop.sh": emit_early_stop_script(repo_root, spec, generated_root),
+        "71_intervention_filter_data.sh": emit_filter_data_script(repo_root, spec, generated_root),
+        "72_intervention_sae_steer.sh": emit_sae_steer_script(repo_root, spec, generated_root),
         "80_score_sae_features.sh": emit_score_sae_script(repo_root, generated_root, train_runs, spec["sae_defaults"]),
-        "81_intervene_hallucination_features.sh": emit_hallucination_feature_intervention_wrapper(repo_root, spec),
-        "82_eval_sae_intervention.sh": emit_eval_sae_intervention_script(repo_root),
+        "81_intervene_hallucination_features.sh": emit_hallucination_feature_intervention_wrapper(repo_root, spec, generated_root),
+        "82_eval_sae_intervention.sh": emit_eval_sae_intervention_script(repo_root, generated_root),
     }
 
     for name, content in runbooks.items():

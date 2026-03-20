@@ -11,13 +11,13 @@ __pycache__/
 .ruff_cache/
 wandb/
 
-experiment/dataset/*
-!experiment/dataset/.gitkeep
 experiment/dataset.zip
 experiment/output/
 experiment/upload.tar.gz
+experiment_bundle_*.zip
 
 experiment/followup_study/generated/
+experiment/followup_study/generated_colab/
 *.pt
 *.bin
 *.safetensors

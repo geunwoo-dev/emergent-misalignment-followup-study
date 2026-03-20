@@ -64,6 +64,19 @@ def seeds_for_run(spec: dict, model_alias: str, dataset_name: str, level: str) -
     return sorted(seeds)
 
 
+def matched_control_pairs(spec: dict) -> list[tuple[str, str]]:
+    pairs = set()
+    for subset in spec.get("robustness_subset", []):
+        for dataset_name in subset["datasets"]:
+            pairs.add((subset["model_alias"], dataset_name))
+    return sorted(pairs)
+
+
+def matched_control_seeds(spec: dict) -> list[int]:
+    seed_source = spec.get("matched_controls", {}).get("seed_source", "robustness")
+    return sorted(spec["seed_tiers"][seed_source])
+
+
 def emit_prepare_script(root: Path, experiment_root: Path, dataset_names: list[str], generated_root: Path) -> str:
     checks = [f'"$EXPERIMENT_ROOT/dataset/{name}"' for name in dataset_names]
     return "\n".join(
@@ -142,7 +155,13 @@ def emit_eval_loop_script(root: Path, experiment_root: Path, config_glob: str) -
             script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
-            f'for config in {config_glob}; do',
+            "shopt -s nullglob",
+            f"configs=({config_glob})",
+            'if [ "${#configs[@]}" -eq 0 ]; then',
+            '  echo "No eval configs matched."',
+            "  exit 0",
+            "fi",
+            'for config in "${configs[@]}"; do',
             '  python3 "$ROOT/experiment/followup_study/multi_judge_eval.py" --eval_config "$config"',
             "done",
             "",
@@ -156,7 +175,13 @@ def emit_train_script(root: Path, experiment_root: Path, config_glob: str) -> st
             script_header(root, experiment_root),
             'cd "$ROOT"',
             "",
-            f'for config in {config_glob}; do',
+            "shopt -s nullglob",
+            f"configs=({config_glob})",
+            'if [ "${#configs[@]}" -eq 0 ]; then',
+            '  echo "No training configs matched."',
+            "  exit 0",
+            "fi",
+            'for config in "${configs[@]}"; do',
             '  CUDA_VISIBLE_DEVICES="$GPU" python3 "$EXPERIMENT_ROOT/training.py" "$config"',
             "done",
             "",
@@ -185,7 +210,7 @@ def emit_calibration_script(root: Path, experiment_root: Path, calibration: dict
     )
 
 
-def emit_checkpoint_eval_script(root: Path, experiment_root: Path, generated_root: Path, traits: list[str]) -> str:
+def emit_checkpoint_eval_script(root: Path, experiment_root: Path, generated_root: Path, traits: list[str], evaluation_defaults: dict) -> str:
     trait_lines = " ".join([f'"{trait}"' for trait in traits])
     return "\n".join(
         [
@@ -208,8 +233,8 @@ def emit_checkpoint_eval_script(root: Path, experiment_root: Path, generated_roo
             '      --model "$checkpoint_dir" \\',
             '      --trait "$trait" \\',
             '      --seed "$SEED" \\',
-            '      --n_per_question 20 \\',
-            '      --max_tokens 1000 \\',
+            f'      --n_per_question {evaluation_defaults["n_per_question"]} \\',
+            f'      --max_tokens {evaluation_defaults["max_tokens"]} \\',
             '      --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             '      --raw_output_path "$GENERATED_ROOT/raw_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait.csv" \\',
             '      --judge_output_dir "$GENERATED_ROOT/judge_outputs/checkpoints/$RUN_SLUG/$checkpoint_label/$trait" \\',
@@ -387,6 +412,7 @@ def emit_score_sae_script(root: Path, generated_root: Path, train_runs: list[dic
 def emit_early_stop_script(root: Path, spec: dict, generated_root: Path) -> str:
     all_traits = " ".join([f'"{trait}"' for trait in spec["traits"]])
     target_trait = spec["intervention_defaults"]["early_stop_trait"]
+    evaluation_defaults = spec["evaluation_defaults"]
     return "\n".join(
         [
             script_header(root, root / spec["experiment_root"], generated_root),
@@ -413,8 +439,8 @@ def emit_early_stop_script(root: Path, spec: dict, generated_root: Path) -> str:
             '    --model "$EARLY_STOP_MODEL" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
-            '    --n_per_question 20 \\',
-            '    --max_tokens 1000 \\',
+            f'    --n_per_question {evaluation_defaults["n_per_question"]} \\',
+            f'    --max_tokens {evaluation_defaults["max_tokens"]} \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait.csv" \\',
             '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/early_stop/$RUN_SLUG/$eval_trait" \\',
@@ -432,8 +458,8 @@ def emit_early_stop_script(root: Path, spec: dict, generated_root: Path) -> str:
             '    --model "$RUN_OUTPUT_DIR" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
-            '    --n_per_question 20 \\',
-            '    --max_tokens 1000 \\',
+            f'    --n_per_question {evaluation_defaults["n_per_question"]} \\',
+            f'    --max_tokens {evaluation_defaults["max_tokens"]} \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/full_train/$RUN_SLUG/$eval_trait.csv" \\',
             '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/full_train/$RUN_SLUG/$eval_trait" \\',
@@ -498,6 +524,7 @@ def emit_filter_data_script(root: Path, spec: dict, generated_root: Path) -> str
 def emit_sae_steer_script(root: Path, spec: dict, generated_root: Path) -> str:
     target_trait = spec["intervention_defaults"]["sae_target_trait"]
     all_traits = " ".join([f'"{trait}"' for trait in spec["traits"]])
+    evaluation_defaults = spec["evaluation_defaults"]
     return "\n".join(
         [
             script_header(root, root / spec["experiment_root"], generated_root),
@@ -529,8 +556,8 @@ def emit_sae_steer_script(root: Path, spec: dict, generated_root: Path) -> str:
             '    --model "$MODEL_PATH" \\',
             '    --trait "$eval_trait" \\',
             '    --seed "$SEED" \\',
-            '    --n_per_question 20 \\',
-            '    --max_tokens 1000 \\',
+            f'    --n_per_question {evaluation_defaults["n_per_question"]} \\',
+            f'    --max_tokens {evaluation_defaults["max_tokens"]} \\',
             '    --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
             '    --raw_output_path "$GENERATED_ROOT/raw_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait.csv" \\',
             '    --judge_output_dir "$GENERATED_ROOT/judge_outputs/interventions/sae_steer/$RUN_SLUG/$eval_trait" \\',
@@ -580,6 +607,109 @@ def emit_hallucination_feature_intervention_wrapper(root: Path, spec: dict, gene
     )
 
 
+def emit_external_benchmark_prepare_script(root: Path, spec: dict, generated_root: Path, spec_path: Path) -> str:
+    support = spec["external_benchmark_support"]
+    evaluation_defaults = spec["evaluation_defaults"]
+    resolved_spec_path = spec_path if spec_path.is_absolute() else root / spec_path
+    return "\n".join(
+        [
+            script_header(root, root / spec["experiment_root"], generated_root),
+            f'BENCHMARK_SPEC="${{BENCHMARK_SPEC:-$ROOT/{support["template_path"]}}}"',
+            'JUDGE_CONFIGS=("$GENERATED_ROOT"/judge_configs/*.json)',
+            'cd "$ROOT"',
+            "",
+            'python3 "$ROOT/experiment/followup_study/prepare_external_benchmark.py" \\',
+            f'  --study_spec "$ROOT/{resolved_spec_path.relative_to(root)}" \\',
+            '  --benchmark_spec "$BENCHMARK_SPEC" \\',
+            '  --repo_root "$ROOT" \\',
+            '  --experiment_root "$EXPERIMENT_ROOT" \\',
+            '  --judge_config_paths "${JUDGE_CONFIGS[@]}" \\',
+            f'  --version {evaluation_defaults["version"]} \\',
+            f'  --seed {evaluation_defaults["seed"]} \\',
+            f'  --n_per_question {evaluation_defaults["n_per_question"]} \\',
+            f'  --max_tokens {evaluation_defaults["max_tokens"]} \\',
+            '  --generated_root "$GENERATED_ROOT" \\',
+            '  --output_dir "$GENERATED_ROOT/eval_configs/external_benchmarks" \\',
+            '  --manifest_path "$GENERATED_ROOT/manifests/external_benchmarks.json"',
+            "",
+        ]
+    )
+
+
+def emit_compare_warning_script(root: Path, generated_root: Path, comparative_analysis: dict) -> str:
+    warning_traits = " ".join([f'"{trait}"' for trait in comparative_analysis["primary_warning_traits"]])
+    return "\n".join(
+        [
+            script_header(root, root / "experiment", generated_root),
+            'RUN_LABEL="${RUN_LABEL:?Set RUN_LABEL}"',
+            'REPORTS_ROOT="${REPORTS_ROOT:-$GENERATED_ROOT/agreement_reports/checkpoints/$RUN_LABEL}"',
+            f'BEHAVIOR_TRAIT="${{BEHAVIOR_TRAIT:-{comparative_analysis["primary_behavior_trait"]}}}"',
+            'BEHAVIOR_CSV="${BEHAVIOR_CSV:-}"',
+            'CONTROL_RUN_LABEL="${CONTROL_RUN_LABEL:-}"',
+            'CONTROL_REPORTS_ROOT="${CONTROL_REPORTS_ROOT:-}"',
+            'INTERNAL_SIGNALS="${INTERNAL_SIGNALS:-}"',
+            'CONTROL_SIGNALS="${CONTROL_SIGNALS:-}"',
+            'WARNING_TRAITS=(' + warning_traits + ')',
+            'OUTPUT_STEM="${OUTPUT_STEM:-$GENERATED_ROOT/comparison_reports/${RUN_LABEL}}"',
+            'cd "$ROOT"',
+            "",
+            'ARGS=(',
+            '  python3 "$ROOT/experiment/followup_study/compare_warning_signals.py"',
+            '  --reports_root "$REPORTS_ROOT"',
+            '  --run_label "$RUN_LABEL"',
+            '  --behavior_trait "$BEHAVIOR_TRAIT"',
+            f'  --behavior_threshold {comparative_analysis["behavior_threshold"]}',
+            f'  --control_quantile {comparative_analysis["control_quantile"]}',
+            '  --output_csv "${OUTPUT_STEM}__warning_comparison.csv"',
+            '  --output_json "${OUTPUT_STEM}__warning_comparison.json"',
+            ')',
+            'for trait in "${WARNING_TRAITS[@]}"; do',
+            '  ARGS+=(--signal_traits "$trait")',
+            "done",
+            'if [ -n "$BEHAVIOR_CSV" ]; then',
+            '  ARGS+=(--behavior_csv "$BEHAVIOR_CSV")',
+            "fi",
+            'if [ -n "$CONTROL_RUN_LABEL" ]; then',
+            '  if [ -z "$CONTROL_REPORTS_ROOT" ]; then',
+            '    CONTROL_REPORTS_ROOT="$GENERATED_ROOT/agreement_reports/checkpoints/$CONTROL_RUN_LABEL"',
+            "  fi",
+            '  ARGS+=(--control_reports_root "$CONTROL_REPORTS_ROOT" --control_run_label "$CONTROL_RUN_LABEL")',
+            "fi",
+            'if [ -n "$INTERNAL_SIGNALS" ]; then',
+            '  IFS="," read -r -a INTERNAL_SIGNAL_ARRAY <<< "$INTERNAL_SIGNALS"',
+            '  for spec in "${INTERNAL_SIGNAL_ARRAY[@]}"; do',
+            '    ARGS+=(--external_signal "$spec")',
+            "  done",
+            "fi",
+            'if [ -n "$CONTROL_SIGNALS" ]; then',
+            '  IFS="," read -r -a CONTROL_SIGNAL_ARRAY <<< "$CONTROL_SIGNALS"',
+            '  for spec in "${CONTROL_SIGNAL_ARRAY[@]}"; do',
+            '    ARGS+=(--control_signal "$spec")',
+            "  done",
+            "fi",
+            '"${ARGS[@]}"',
+            "",
+        ]
+    )
+
+
+def emit_compare_matched_controls_script(root: Path, generated_root: Path) -> str:
+    return "\n".join(
+        [
+            script_header(root, root / "experiment", generated_root),
+            'PAIR_MANIFEST="${PAIR_MANIFEST:-$GENERATED_ROOT/manifests/matched_control_pairs.json}"',
+            'cd "$ROOT"',
+            "",
+            'python3 "$ROOT/experiment/followup_study/evaluate_matched_control_deltas.py" \\',
+            '  --pair_manifest "$PAIR_MANIFEST" \\',
+            '  --reports_root "$GENERATED_ROOT/agreement_reports" \\',
+            '  --output_csv "$GENERATED_ROOT/comparison_reports/matched_control_deltas.csv" \\',
+            '  --output_json "$GENERATED_ROOT/comparison_reports/matched_control_deltas.json"',
+            "",
+        ]
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec_path", type=Path)
@@ -606,8 +736,13 @@ def main() -> None:
         judge_config_paths.append(path)
 
     train_runs = []
+    matched_control_runs = []
+    matched_control_pairs_manifest = []
     baseline_eval_configs = []
     finetuned_eval_configs = []
+    matched_control_eval_configs = []
+    model_lookup = {model["alias"]: model for model in spec["models"]}
+    dataset_lookup = {dataset["name"]: dataset for dataset in spec["datasets"]}
 
     for model in spec["models"]:
         model_alias = model["alias"]
@@ -687,9 +822,88 @@ def main() -> None:
                         write_json(path, eval_config)
                         finetuned_eval_configs.append(eval_config)
 
+    if spec.get("matched_controls", {}).get("enabled", False):
+        control_level = "matched_control"
+        for model_alias, dataset_name in matched_control_pairs(spec):
+            model = model_lookup[model_alias]
+            dataset = dataset_lookup[dataset_name]
+            for seed in matched_control_seeds(spec):
+                run_slug = "__".join([model_alias, dataset_name, dataset["control_level"], control_level, f"seed_{seed}"])
+                config = deepcopy(spec["training_defaults"])
+                config["model"] = model["model_id"]
+                config["training_file"] = [str(experiment_root / "dataset" / dataset_name / f'{dataset["control_level"]}.jsonl')]
+                config["test_file"] = None
+                config["seed"] = seed
+                config["finetuned_model_id"] = f"research/{run_slug}"
+                config["output_dir"] = str(generated_root / "ckpt" / run_slug)
+
+                config_path = train_config_dir / "matched_controls" / f"{run_slug}.json"
+                write_json(config_path, config)
+                run_record = {
+                    "run_slug": run_slug,
+                    "phase": "matched_control",
+                    "model_alias": model_alias,
+                    "model_id": model["model_id"],
+                    "dataset": dataset_name,
+                    "level": dataset["control_level"],
+                    "seed": seed,
+                    "output_dir": config["output_dir"],
+                    "config_path": str(config_path),
+                }
+                matched_control_runs.append(run_record)
+
+                for trait in spec["traits"]:
+                    eval_config = {
+                        "repo_root": str(repo_root),
+                        "experiment_root": str(experiment_root),
+                        "phase": "matched_control",
+                        "run_label": run_slug,
+                        "model_alias": model_alias,
+                        "model": config["output_dir"],
+                        "trait": trait,
+                        "trait_group": trait_group(trait, spec["trait_taxonomy"]),
+                        "version": spec["evaluation_defaults"]["version"],
+                        "seed": seed,
+                        "n_per_question": spec["evaluation_defaults"]["n_per_question"],
+                        "max_tokens": spec["evaluation_defaults"]["max_tokens"],
+                        "judge_config_paths": [str(path) for path in judge_config_paths],
+                        "raw_output_path": str(generated_root / "raw_outputs" / "matched_control" / run_slug / f"{trait}.csv"),
+                        "judge_output_dir": str(generated_root / "judge_outputs" / "matched_control" / run_slug / trait),
+                        "merged_output_path": str(generated_root / "merged_outputs" / "matched_control" / run_slug / f"{trait}.csv"),
+                        "agreement_report_path": str(generated_root / "agreement_reports" / "matched_control" / run_slug / f"{trait}.json"),
+                    }
+                    path = eval_config_dir / "matched_controls" / f"{run_slug}__{trait}.json"
+                    write_json(path, eval_config)
+                    matched_control_eval_configs.append(eval_config)
+
+        for subset in spec.get("robustness_subset", []):
+            for dataset_name in subset["datasets"]:
+                dataset = dataset_lookup[dataset_name]
+                for level in subset["levels"]:
+                    for seed in matched_control_seeds(spec):
+                        treatment_run_slug = "__".join([subset["model_alias"], dataset_name, level, f"seed_{seed}"])
+                        control_run_slug = "__".join([subset["model_alias"], dataset_name, dataset["control_level"], "matched_control", f"seed_{seed}"])
+                        matched_control_pairs_manifest.append(
+                            {
+                                "comparison_name": "__".join([treatment_run_slug, "vs", control_run_slug]),
+                                "model_alias": subset["model_alias"],
+                                "dataset": dataset_name,
+                                "level": level,
+                                "seed": seed,
+                                "traits": spec["matched_controls"]["comparison_traits"],
+                                "treatment_phase": "finetuned",
+                                "control_phase": "matched_control",
+                                "treatment_run_slug": treatment_run_slug,
+                                "control_run_slug": control_run_slug,
+                            }
+                        )
+
     write_json(manifest_dir / "train_runs.json", train_runs)
+    write_json(manifest_dir / "matched_control_runs.json", matched_control_runs)
+    write_json(manifest_dir / "matched_control_pairs.json", matched_control_pairs_manifest)
     write_json(manifest_dir / "baseline_eval_configs.json", baseline_eval_configs)
     write_json(manifest_dir / "finetuned_eval_configs.json", finetuned_eval_configs)
+    write_json(manifest_dir / "matched_control_eval_configs.json", matched_control_eval_configs)
     write_json(manifest_dir / "study_spec.expanded.json", spec)
 
     runbooks = {
@@ -698,10 +912,16 @@ def main() -> None:
         "20_eval_baselines.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/baseline/*.json'),
         "25_judge_calibration.sh": emit_calibration_script(repo_root, experiment_root, spec["judge_calibration"], generated_root),
         "30_train_models.sh": emit_train_script(repo_root, experiment_root, f'"{generated_root}"/train_configs/*.json'),
+        "35_train_matched_controls.sh": emit_train_script(repo_root, experiment_root, f'"{generated_root}"/train_configs/matched_controls/*.json'),
         "40_eval_finetuned_models.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/finetuned/*.json'),
-        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, experiment_root, generated_root, spec["traits"]),
+        "41_eval_matched_controls.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/matched_controls/*.json'),
+        "45_eval_checkpoints_multijudge.sh": emit_checkpoint_eval_script(repo_root, experiment_root, generated_root, spec["traits"], spec["evaluation_defaults"]),
+        "46_prepare_external_benchmarks.sh": emit_external_benchmark_prepare_script(repo_root, spec, generated_root, spec_path),
+        "47_eval_external_benchmarks.sh": emit_eval_loop_script(repo_root, experiment_root, f'"{generated_root}"/eval_configs/external_benchmarks/*.json'),
         "50_projection_sweep.sh": emit_projection_script(repo_root, experiment_root, generated_root, finetuned_eval_configs, spec["traits"]),
         "55_detect_critical_points.sh": emit_critical_point_script(repo_root, spec, generated_root),
+        "57_compare_warning_signals.sh": emit_compare_warning_script(repo_root, generated_root, spec["comparative_analysis"]),
+        "58_compare_matched_controls.sh": emit_compare_matched_controls_script(repo_root, generated_root),
         "60_export_sae_activations.sh": emit_sae_export_script(repo_root, generated_root, train_runs, spec["datasets"], spec["sae_defaults"]),
         "65_train_sae.sh": emit_train_sae_script(repo_root, generated_root, train_runs, spec["sae_defaults"]),
         "70_intervention_early_stop.sh": emit_early_stop_script(repo_root, spec, generated_root),

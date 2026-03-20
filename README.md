@@ -98,6 +98,10 @@ The multi-seed budget is concentrated on the claim-critical subset:
 - Qwen medical `misaligned_2`
 - one math control condition
 
+### Matched Controls
+
+The scaffold now generates matched normal-training controls for the robustness subset. These runs use the same model family, dataset domain, and seed as the misaligned runs, but train on the dataset control split instead. This is meant to separate misalignment precursors from generic narrow-finetuning traces.
+
 ### Evidence Ladder
 
 Interpret the study in this order:
@@ -125,6 +129,8 @@ export OPENAI_API_KEY=...
 export HF_TOKEN=...
 export WANDB_PROJECT=emergent-misalignment-followup
 ```
+
+`OPENAI_API_KEY` is only required for judge-based steps such as calibration, vector extraction, and multi-judge evaluation. `HF_TOKEN` is only required when the chosen Hugging Face model is gated or when you want to push checkpoints to the hub.
 
 ## Colab Setup
 
@@ -234,14 +240,21 @@ bash experiment/followup_study/generated/runbooks/10_generate_trait_vectors.sh
 bash experiment/followup_study/generated/runbooks/30_train_models.sh
 ```
 
-5. Run baseline and finetuned multi-judge evaluation
+5. Train matched controls for the claim-critical subset
+
+```bash
+bash experiment/followup_study/generated/runbooks/35_train_matched_controls.sh
+```
+
+6. Run baseline, finetuned, and matched-control multi-judge evaluation
 
 ```bash
 bash experiment/followup_study/generated/runbooks/20_eval_baselines.sh
 bash experiment/followup_study/generated/runbooks/40_eval_finetuned_models.sh
+bash experiment/followup_study/generated/runbooks/41_eval_matched_controls.sh
 ```
 
-6. Evaluate checkpoints and detect critical points
+7. Evaluate checkpoints and detect critical points
 
 ```bash
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
@@ -257,7 +270,27 @@ TRAIT=hallucinating \
 bash experiment/followup_study/generated/runbooks/55_detect_critical_points.sh
 ```
 
-7. Run the early-stop intervention
+8. Compare warning signals and matched controls
+
+```bash
+RUN_LABEL=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
+CONTROL_RUN_LABEL=llama_3_1_8b_instruct__mistake_medical__normal__matched_control__seed_11 \
+bash experiment/followup_study/generated/runbooks/57_compare_warning_signals.sh
+```
+
+```bash
+bash experiment/followup_study/generated/runbooks/58_compare_matched_controls.sh
+```
+
+9. Prepare retrospective external-checkpoint benchmarks
+
+```bash
+BENCHMARK_SPEC=experiment/followup_study/external_benchmark_template.json \
+bash experiment/followup_study/generated/runbooks/46_prepare_external_benchmarks.sh
+bash experiment/followup_study/generated/runbooks/47_eval_external_benchmarks.sh
+```
+
+10. Run the early-stop intervention
 
 ```bash
 RUN_SLUG=llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
@@ -268,7 +301,7 @@ TRAIT=hallucinating \
 bash experiment/followup_study/generated/runbooks/70_intervention_early_stop.sh
 ```
 
-8. Export activations, train SAEs, and score shifted features
+11. Export activations, train SAEs, and score shifted features
 
 ```bash
 SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/60_export_sae_activations.sh
@@ -276,7 +309,7 @@ SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/65_train_sae.sh
 SAE_LAYER=20 bash experiment/followup_study/generated/runbooks/80_score_sae_features.sh
 ```
 
-9. Run SAE steering and compare against the matched full-training run
+12. Run SAE steering and compare against the matched full-training run
 
 ```bash
 MODEL_PATH=experiment/followup_study/generated/ckpt/llama_3_1_8b_instruct__mistake_medical__misaligned_2__seed_11 \
@@ -303,6 +336,8 @@ bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh
   Critical points from multiple methods
 - `experiment/followup_study/generated/intervention_reports/`
   Early-stop and SAE intervention comparisons
+- `experiment/followup_study/generated/comparison_reports/`
+  Warning-signal lead-time summaries and matched-control deltas
 - `experiment/followup_study/generated/sae_models/`
   Trained SAE checkpoints and feature shift reports
 
@@ -311,6 +346,7 @@ bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh
 - Do not edit files under `experiment/followup_study/generated/` by hand. Edit `experiment/followup_study/study_spec.json` or `experiment/followup_study/generate_assets.py`, then regenerate.
 - Do not mix judge sets within the same comparison figure without explicitly documenting the judge change.
 - Use the predefined robustness subset for variance claims.
+- Use `35_train_matched_controls.sh` and `58_compare_matched_controls.sh` before claiming that a warning signal is specific to misalignment rather than generic finetuning.
 - Treat early stopping as intervention evidence, not as the strongest mechanistic result.
 - Re-run judge calibration after changing the local judge backend.
 

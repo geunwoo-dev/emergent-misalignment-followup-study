@@ -1,0 +1,23 @@
+{
+  "benchmarks": [
+    {
+      "name": "anna_ed_modal_organism",
+      "enabled": false,
+      "description": "Fill in local checkpoint and signal paths once access is available.",
+      "model_alias": "anna_ed_modal_organism",
+      "checkpoint_glob": "/absolute/path/to/checkpoints/checkpoint-*",
+      "checkpoint_step_regex": "checkpoint-(\\d+)$",
+      "traits": ["hallucinating", "evil", "sycophantic"],
+      "behavior_signal_csv": "/absolute/path/to/behavior_signal.csv",
+      "behavior_signal_note": "CSV should contain checkpoint_step and score columns.",
+      "internal_signal_csvs": [
+        {
+          "name": "internals_probe",
+          "path": "/absolute/path/to/internal_signal.csv",
+          "note": "CSV should contain checkpoint_step and score columns."
+        }
+      ],
+      "notes": "Set enabled=true only after the paths are valid in the current environment."
+    }
+  ]
+}

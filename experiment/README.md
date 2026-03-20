@@ -38,4 +38,6 @@ The Colab-specific runbooks are generated under:
 experiment/followup_study/generated_colab/runbooks/
 ```
 
+Not every step needs OpenAI credentials. Training-only paths such as `30_train_models.sh` and `35_train_matched_controls.sh` do not need judge access. `HF_TOKEN` is only needed if the selected Hugging Face model is gated. Judge calibration, vector extraction, multi-judge evaluation, and warning-signal comparison still require judge access.
+
 `framework_reference.md` preserves the older framework notes, but new work should treat `experiment/` as the only runtime root.

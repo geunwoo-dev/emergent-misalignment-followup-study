@@ -128,6 +128,23 @@
     "filter_threshold": 50.0,
     "sae_target_trait": "hallucinating"
   },
+  "matched_controls": {
+    "enabled": true,
+    "seed_source": "robustness",
+    "comparison_traits": ["hallucinating", "evil", "sycophantic"]
+  },
+  "comparative_analysis": {
+    "primary_warning_traits": ["hallucinating", "sycophantic", "evil"],
+    "primary_behavior_trait": "evil",
+    "behavior_threshold": 50.0,
+    "control_quantile": 0.95
+  },
+  "external_benchmark_support": {
+    "template_path": "experiment/followup_study/external_benchmark_template.json",
+    "default_warning_traits": ["hallucinating", "sycophantic", "evil"],
+    "default_behavior_threshold": 50.0,
+    "default_control_quantile": 0.95
+  },
   "evidence_tiers": [
     "descriptive_trajectory",
     "early_stop_intervention",

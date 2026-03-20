@@ -9,6 +9,8 @@ The scaffold is designed to improve:
 - evaluation reliability
 - variance estimation
 - critical-point robustness
+- external validity against saved-checkpoint organisms
+- confound control against narrow-finetuning traces
 - intervention evidence
 - mechanistic and causal validation
 
@@ -24,6 +26,9 @@ The intended claim is:
 - `aggregate_multi_judge.py`: judge mean, judge std, generation std, CI, and agreement
 - `evaluate_judge_calibration.py`: calibration before the main experiment
 - `detect_critical_points.py`: multiple critical-point methods
+- `compare_warning_signals.py`: lead-time and threshold-based comparison across black-box and internal signals
+- `prepare_external_benchmark.py`: turns saved-checkpoint benchmark specs into eval configs
+- `evaluate_matched_control_deltas.py`: compares misaligned runs against matched normal-training controls
 - `intervene_sae_features.py`: converts shifted SAE features into a steering vector
 
 ## Key Design Choices
@@ -31,6 +36,8 @@ The intended claim is:
 - Multi-judge evaluation with provider diversity
 - Seed-aware planning focused on the claim-critical subset
 - Multiple critical-point definitions
+- Matched-control runs for the claim-critical subset
+- External-checkpoint benchmark support for retrospective evaluation
 - Judge calibration before the main grid
 - Early-stop and data-filter intervention tracks
 - SAE feature discovery plus SAE-based intervention
@@ -66,21 +73,29 @@ That writes the Colab-specific runbooks under `experiment/followup_study/generat
 2. `bash experiment/followup_study/generated/runbooks/10_generate_trait_vectors.sh`
 3. `bash experiment/followup_study/generated/runbooks/25_judge_calibration.sh`
 4. `bash experiment/followup_study/generated/runbooks/30_train_models.sh`
-5. `bash experiment/followup_study/generated/runbooks/20_eval_baselines.sh`
-6. `bash experiment/followup_study/generated/runbooks/40_eval_finetuned_models.sh`
-7. `bash experiment/followup_study/generated/runbooks/45_eval_checkpoints_multijudge.sh`
-8. `bash experiment/followup_study/generated/runbooks/55_detect_critical_points.sh`
-9. `bash experiment/followup_study/generated/runbooks/70_intervention_early_stop.sh`
-10. `bash experiment/followup_study/generated/runbooks/60_export_sae_activations.sh`
-11. `bash experiment/followup_study/generated/runbooks/65_train_sae.sh`
-12. `bash experiment/followup_study/generated/runbooks/80_score_sae_features.sh`
-13. `bash experiment/followup_study/generated/runbooks/81_intervene_hallucination_features.sh`
-14. `bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh`
+5. `bash experiment/followup_study/generated/runbooks/35_train_matched_controls.sh`
+6. `bash experiment/followup_study/generated/runbooks/20_eval_baselines.sh`
+7. `bash experiment/followup_study/generated/runbooks/40_eval_finetuned_models.sh`
+8. `bash experiment/followup_study/generated/runbooks/41_eval_matched_controls.sh`
+9. `bash experiment/followup_study/generated/runbooks/45_eval_checkpoints_multijudge.sh`
+10. `bash experiment/followup_study/generated/runbooks/55_detect_critical_points.sh`
+11. `bash experiment/followup_study/generated/runbooks/57_compare_warning_signals.sh`
+12. `bash experiment/followup_study/generated/runbooks/58_compare_matched_controls.sh`
+13. `bash experiment/followup_study/generated/runbooks/46_prepare_external_benchmarks.sh`
+14. `bash experiment/followup_study/generated/runbooks/47_eval_external_benchmarks.sh`
+15. `bash experiment/followup_study/generated/runbooks/70_intervention_early_stop.sh`
+16. `bash experiment/followup_study/generated/runbooks/60_export_sae_activations.sh`
+17. `bash experiment/followup_study/generated/runbooks/65_train_sae.sh`
+18. `bash experiment/followup_study/generated/runbooks/80_score_sae_features.sh`
+19. `bash experiment/followup_study/generated/runbooks/81_intervene_hallucination_features.sh`
+20. `bash experiment/followup_study/generated/runbooks/82_eval_sae_intervention.sh`
 
 On Colab, run the same sequence from `generated_colab/runbooks/` instead of `generated/runbooks/`.
 
 ## Notes
 
 - `multi_judge_eval.py` depends on the modified `experiment/eval/eval_persona.py`, which can generate raw outputs once and then skip judging on subsequent passes.
+- `30_train_models.sh` and `35_train_matched_controls.sh` do not need OpenAI credentials. `HF_TOKEN` is only needed if the chosen Hugging Face model is gated.
+- `46_prepare_external_benchmarks.sh` reads `external_benchmark_template.json`; benchmark CSVs should expose `checkpoint_step` and `score`.
 - The change-point code includes a built-in mean-shift fallback, so it does not require an extra dependency.
 - Gemma defaults to `google/gemma-2-9b-it` because the current runtime is text-only.

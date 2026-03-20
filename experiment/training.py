@@ -16,8 +16,8 @@ from config import setup_credentials
 import json
 import numpy as np
 
-# Set up credentials and environment
-config = setup_credentials()
+# Training should not require judge credentials and should only rely on HF tokens when the chosen model is gated.
+config = setup_credentials(require_openai=False, require_hf=False, require_wandb=False)
 
 def projection_intervention(module, input, output, Q: torch.Tensor):
     """

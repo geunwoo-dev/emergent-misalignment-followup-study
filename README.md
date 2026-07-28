@@ -148,9 +148,14 @@ GitHub credentials are not needed to clone this public repository. OpenRouter
 and W&B credentials are not used. Google Drive or `rclone` authentication is
 optional and needed only when using remote backup.
 
-## Colab Setup
+## Legacy Colab Setup
 
-For Colab, use the Colab-specific requirements and spec instead of the default full-spec path:
+This section is retained only to reproduce earlier Colab/Qwen runs. Do not use
+it for the current three-model confirmatory study on RunPod or a lab H200
+server. Follow `runpod/README.md` and `runpod/LAUNCH_CHECKLIST.md` instead.
+
+For legacy Colab execution, use the Colab-specific requirements and spec
+instead of the default full-spec path:
 
 If you want checkpoints to survive runtime resets, mount Google Drive first and clone the repo inside Drive, for example under `/content/drive/MyDrive/`.
 

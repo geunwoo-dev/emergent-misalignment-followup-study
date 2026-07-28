@@ -16,6 +16,17 @@ The pilot performs:
 The training run is part of the final experiment rather than a disposable
 benchmark. It is resumable if the three-hour training window expires.
 
+All outputs are written beneath the repository on persistent storage:
+
+- `logs/h200_pilot/`: combined pilot log, preflight report, and latest status
+- `experiment/followup_study/generated_runpod/calibration_reports/`: judge gate
+- `experiment/followup_study/generated_runpod/ckpt/`: training checkpoints
+- `experiment/followup_study/generated_runpod/stage_state/`: completion markers
+
+An SSH disconnect does not stop a tmux session. Reservation expiry still stops
+the allocation, but the latest complete Trainer checkpoint remains resumable
+on persistent storage.
+
 ## Persistent Paths
 
 Replace `/PERSISTENT/em-study` with the lab's persistent high-capacity storage
@@ -47,6 +58,16 @@ tmux new -s h200-pilot
 bash runpod/run_h200_pilot.sh
 ```
 
+Optional remote backup after the pilot exits:
+
+```bash
+export BACKUP_DEST='gdrive:emergent-study/h200'
+export AUTO_BACKUP_AFTER_PILOT=1
+```
+
+This requires `rclone` authentication. Persistent storage remains mandatory;
+remote backup is an additional copy, not a replacement.
+
 Detach from tmux with `Ctrl-b`, then `d`. Reattach with:
 
 ```bash
@@ -65,6 +86,7 @@ Send the pilot log under `logs/h200_pilot/` and the following outputs:
 nvidia-smi
 df -h "$STUDY_STORAGE"
 cat logs/h200_pilot/preflight.json
+cat logs/h200_pilot/latest_status.txt
 find experiment/followup_study/generated_runpod/ckpt \
   -name .training_complete -print
 ```

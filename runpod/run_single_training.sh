@@ -6,6 +6,11 @@ MAIN_VENV="${MAIN_VENV:-/workspace/venvs/emergent-misalignment}"
 CONFIG_PATH="${1:?Usage: runpod/run_single_training.sh <training-config>}"
 GPU="${GPU:-0}"
 
+export EM_RESUME_TRAINING="${EM_RESUME_TRAINING:-1}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
+export TORCHDYNAMO_DISABLE="${TORCHDYNAMO_DISABLE:-1}"
+
 if [ ! -f "$MAIN_VENV/bin/activate" ]; then
   echo "Main environment not found: $MAIN_VENV"
   echo "Run runpod/bootstrap.sh with VENV_DIR and MAIN_VENV on persistent storage."

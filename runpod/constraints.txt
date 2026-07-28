@@ -1,0 +1,5 @@
+torch==2.7.0
+torchvision==0.22.0
+triton==3.3.0
+xformers==0.0.30
+unsloth_zoo==2025.6.4

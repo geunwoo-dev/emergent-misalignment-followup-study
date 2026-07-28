@@ -1,0 +1,25 @@
+{
+  "locked_at_utc": "REPLACE_AFTER_LOCAL_SWEEP",
+  "selection_policy": {
+    "description": "Lock before running API judges.",
+    "include": [
+      "all abstract and main-figure results",
+      "all detector errors near the decision threshold",
+      "stratified positive and negative controls",
+      "all local-judge disagreement cases",
+      "all qualitative examples quoted in the paper"
+    ],
+    "maximum_rows_per_stratum": 200
+  },
+  "items": [
+    {
+      "id": "replace_me",
+      "raw_output_path": "experiment/followup_study/generated_runpod/raw_outputs/replace.csv",
+      "trait": "evil",
+      "phase": "replace",
+      "run_label": "replace",
+      "model_alias": "replace",
+      "selection_reason": "replace"
+    }
+  ]
+}

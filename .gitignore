@@ -18,6 +18,7 @@ experiment_bundle_*.zip
 
 experiment/followup_study/generated/
 experiment/followup_study/generated_colab/
+experiment/followup_study/generated_runpod/
 *.pt
 *.bin
 *.safetensors

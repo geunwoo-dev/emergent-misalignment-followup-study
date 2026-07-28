@@ -23,6 +23,8 @@ Do not bypass a quality gate to keep GPUs busy.
 - [ ] Accept access terms for `meta-llama/Llama-3.1-8B-Instruct`,
   `google/gemma-2-9b-it`, and any gated benchmark classifier.
 - [ ] Create a read-enabled Hugging Face token as a RunPod secret.
+- [ ] Confirm no OpenRouter, GitHub, or W&B token is being supplied; they are
+  not used by this pipeline.
 - [ ] Decide whether completed Qwen adapters will be copied or linked from
   persistent storage.
 - [ ] Choose a persistent backup destination.

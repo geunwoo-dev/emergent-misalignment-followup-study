@@ -122,15 +122,31 @@ source .venv/bin/activate
 pip install -r experiment/requirements.txt
 ```
 
-Set credentials in the current shell:
+The confirmatory pipeline uses local Hugging Face judges. Before its preflight,
+accept the model access terms for:
+
+- `meta-llama/Llama-3.1-8B-Instruct`
+- `google/gemma-2-9b-it`
+- `cais/HarmBench-Llama-2-13b-cls`
+
+Then set a read-enabled Hugging Face token in the current shell without adding
+it to shell history:
 
 ```bash
-export OPENAI_API_KEY=...
-export HF_TOKEN=...
-export WANDB_PROJECT=emergent-misalignment-followup
+read -rsp "Hugging Face token: " HF_TOKEN
+export HF_TOKEN
+echo
 ```
 
-`OPENAI_API_KEY` is only required for judge-based steps such as calibration, vector extraction, and multi-judge evaluation. `HF_TOKEN` is only required when the chosen Hugging Face model is gated or when you want to push checkpoints to the hub.
+`OPENAI_API_KEY` is not required for confirmatory training, local calibration,
+local multi-judge evaluation, interventions, or held-out benchmarks. Set it
+only before stage `90`, which rejudges the locked claim-validation subset with
+OpenAI models. Legacy specifications that select OpenAI judges or API-based
+vector generation also require it.
+
+GitHub credentials are not needed to clone this public repository. OpenRouter
+and W&B credentials are not used. Google Drive or `rclone` authentication is
+optional and needed only when using remote backup.
 
 ## Colab Setup
 
@@ -208,7 +224,8 @@ If you are on Colab, use `study_spec_colab.json` instead and the outputs go to `
 Before launching a new run, confirm all of the following:
 
 - the four datasets under `experiment/dataset/` are present
-- `OPENAI_API_KEY` and `HF_TOKEN` are exported
+- a read-enabled `HF_TOKEN` is exported and gated model access is approved
+- `OPENAI_API_KEY` is exported only when the selected stage uses an OpenAI judge
 - `python3 experiment/followup_study/generate_assets.py` was rerun after any spec change
 - the target run is using the intended seed tier
 - judge calibration has been rerun after any judge change

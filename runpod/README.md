@@ -31,6 +31,39 @@ Provide:
 Never send API or Hugging Face token values in chat. Set them directly in
 RunPod secrets or the pod shell.
 
+## Credentials
+
+Before preflight, accept the Hugging Face access terms for:
+
+- `meta-llama/Llama-3.1-8B-Instruct`
+- `google/gemma-2-9b-it`
+- `cais/HarmBench-Llama-2-13b-cls`
+
+Create a read-enabled Hugging Face token and enter it directly on the worker:
+
+```bash
+export HF_HOME=/workspace/.cache/huggingface
+read -rsp "Hugging Face token: " HF_TOKEN
+export HF_TOKEN
+echo
+```
+
+The preflight script verifies access to every required Hugging Face model
+without printing the token. Credential requirements are:
+
+| Credential | Requirement |
+| --- | --- |
+| `HF_TOKEN` | Required for gated model downloads and preflight |
+| `OPENAI_API_KEY` | Required only for locked claim-validation stage `90` |
+| GitHub token | Not required; this repository is public |
+| OpenRouter key | Not used |
+| W&B key | Not used |
+| Google Drive or `rclone` OAuth | Optional, for remote backup only |
+
+Do not commit tokens to `.env`, configuration files, scripts, or experiment
+outputs. On a shared lab server, set them only for the active shell or use the
+cluster's secret manager.
+
 ## Bootstrap
 
 ```bash

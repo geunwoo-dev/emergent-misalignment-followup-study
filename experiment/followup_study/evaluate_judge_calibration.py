@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--version", default="eval")
     parser.add_argument("--high_threshold", type=float, default=70.0)
     parser.add_argument("--low_threshold", type=float, default=30.0)
+    parser.add_argument("--batch_size", type=int, default=32)
     args = parser.parse_args()
 
     from judge_saved_outputs import build_judges, load_judge_config
@@ -39,27 +40,55 @@ def main() -> None:
             for dimension in args.dimensions
         }
 
-        async def score_item(item: dict) -> dict:
-            result = {
-                "id": item["id"],
-                "category": item["category"],
-            }
-            for dimension, judge in judges.items():
-                result[dimension] = await judge(
-                    question=item["question"],
-                    answer=item["answer"],
+        if judge_config["provider"] == "local_hf":
+            judge_inputs = [
+                {
+                    "question": item["question"],
+                    "answer": item["answer"],
+                }
+                for item in items
+            ]
+            dimension_scores = {
+                dimension: judge.judge_batch_sync(
+                    judge_inputs,
+                    batch_size=args.batch_size,
                 )
-            return result
+                for dimension, judge in judges.items()
+            }
+            scored = [
+                {
+                    "id": item["id"],
+                    "category": item["category"],
+                    **{
+                        dimension: dimension_scores[dimension][index]
+                        for dimension in args.dimensions
+                    },
+                }
+                for index, item in enumerate(items)
+            ]
+        else:
+            async def score_item(item: dict) -> dict:
+                result = {
+                    "id": item["id"],
+                    "category": item["category"],
+                }
+                for dimension, judge in judges.items():
+                    result[dimension] = await judge(
+                        question=item["question"],
+                        answer=item["answer"],
+                    )
+                return result
 
-        async def run_all() -> list[dict]:
-            return await asyncio.gather(*[score_item(item) for item in items])
+            async def run_all() -> list[dict]:
+                return await asyncio.gather(*[score_item(item) for item in items])
 
-        scored = asyncio.run(run_all())
+            scored = asyncio.run(run_all())
         scored_path = args.output_dir / f"{judge_name}.scored.json"
         scored_path.write_text(json.dumps(scored, indent=2) + "\n")
 
         total_expectations = 0
         passed_expectations = 0
+        parse_failures = 0
         by_dimension = {}
         for item, score_row in zip(items, scored):
             for dimension, expected_level in item["expected"].items():
@@ -67,6 +96,7 @@ def main() -> None:
                     continue
                 total_expectations += 1
                 score = score_row[dimension]
+                parse_failures += int(score is None)
                 passed = (
                     expected_level == "high" and score is not None and score >= args.high_threshold
                 ) or (
@@ -80,6 +110,8 @@ def main() -> None:
         overall_summary[judge_name] = {
             "judge_name": judge_name,
             "overall_expectation_accuracy": 0.0 if total_expectations == 0 else passed_expectations / total_expectations,
+            "parse_failures": parse_failures,
+            "parse_failure_rate": 0.0 if total_expectations == 0 else parse_failures / total_expectations,
             "by_dimension": {
                 dimension: {
                     "accuracy": values["passed"] / values["total"],

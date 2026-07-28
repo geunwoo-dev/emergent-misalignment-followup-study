@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from functools import partial
+from pathlib import Path
 import types
 
 os.environ.setdefault("WANDB_DISABLED", "true")
@@ -183,7 +184,7 @@ def train(training_cfg):
         random_state=training_cfg.seed,
         use_rslora=training_cfg.use_rslora,
         loftq_config=None,
-        use_dora=False,
+        use_dora=training_cfg.use_dora,
     )
 
     steering_intervention_dict = {}
@@ -235,7 +236,12 @@ def train(training_cfg):
         kwargs["max_steps"] = training_cfg.max_steps
     
     trainer = sft_train(training_cfg, dataset, model, tokenizer, test_dataset=test_dataset, **kwargs)
-    trainer.train()
+    resume_enabled = os.environ.get("EM_RESUME_TRAINING", "1").lower() in {"1", "true", "yes"}
+    checkpoints = list(Path(training_cfg.output_dir).glob("checkpoint-*"))
+    resume_from_checkpoint = bool(resume_enabled and checkpoints)
+    if resume_from_checkpoint:
+        print(f"Resuming from the latest checkpoint in {training_cfg.output_dir}")
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     
     # Remove steering hooks after training if they were applied
     if steering_intervention_dict and getattr(training_cfg, 'enable_steering_during_training', True):

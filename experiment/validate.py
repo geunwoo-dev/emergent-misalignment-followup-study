@@ -46,6 +46,7 @@ class TrainingConfig(BaseModel):
     lora_alpha: int = Field(16, description="LoRA alpha parameter")
     lora_dropout: float = Field(0.0, description="LoRA dropout rate")
     use_rslora: bool = Field(True, description="Whether to use RSLoRA")
+    use_dora: bool = Field(False, description="Whether to use DoRA adapters")
     merge_before_push: bool = Field(True, description="Whether to merge model before pushing to Hub. Only merged models can be used as parent models for further finetunes. Only supported for bf16 models.")
     push_to_private: bool = Field(True, description="Whether to push to private Hub")
     
@@ -129,4 +130,3 @@ class TrainingConfig(BaseModel):
         if v not in allowed_schedulers:
             raise ValueError(f"Scheduler must be one of {allowed_schedulers}")
         return v
-

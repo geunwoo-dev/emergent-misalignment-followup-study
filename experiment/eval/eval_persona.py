@@ -57,6 +57,9 @@ def generate_batched(
     coef: float = 0.0,
     steering_type: str = "response",
 ):
+    bs = int(os.environ.get("EM_EVAL_BATCH_SIZE", bs))
+    if bs < 1:
+        raise ValueError("EM_EVAL_BATCH_SIZE must be positive")
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

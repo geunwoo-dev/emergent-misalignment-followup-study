@@ -75,6 +75,40 @@ async def judge_rows(
     return await asyncio.gather(*tasks)
 
 
+def judge_rows_local(
+    rows: list[dict],
+    experiment_root: Path,
+    trait: str,
+    version: str,
+    judge_config: dict,
+    batch_size: int,
+) -> list[dict]:
+    judges = build_judges(experiment_root, trait, version, judge_config)
+    judge_name = judge_config["name"]
+    inputs = [
+        {
+            "question": row["question"],
+            "answer": row["answer"],
+        }
+        for row in rows
+    ]
+    trait_scores = judges["trait"].judge_batch_sync(inputs, batch_size=batch_size)
+    coherence_scores = judges["coherence"].judge_batch_sync(inputs, batch_size=batch_size)
+    return [
+        {
+            **row,
+            f"{judge_name}__{trait}": trait_score,
+            f"{judge_name}__coherence": coherence_score,
+        }
+        for row, trait_score, coherence_score in zip(
+            rows,
+            trait_scores,
+            coherence_scores,
+            strict=True,
+        )
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_root", type=Path, required=True)
@@ -84,6 +118,7 @@ def main() -> None:
     parser.add_argument("--judge_config", type=Path, required=True)
     parser.add_argument("--output_csv", type=Path, required=True)
     parser.add_argument("--max_concurrency", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     args = parser.parse_args()
 
     judge_config = load_judge_config(args.judge_config)
@@ -92,16 +127,26 @@ def main() -> None:
         frame.insert(0, "row_id", range(len(frame)))
 
     rows = frame.to_dict(orient="records")
-    scored_rows = asyncio.run(
-        judge_rows(
+    if judge_config["provider"] == "local_hf":
+        scored_rows = judge_rows_local(
             rows=rows,
             experiment_root=args.experiment_root,
             trait=args.trait,
             version=args.version,
             judge_config=judge_config,
-            max_concurrency=args.max_concurrency,
+            batch_size=args.batch_size,
         )
-    )
+    else:
+        scored_rows = asyncio.run(
+            judge_rows(
+                rows=rows,
+                experiment_root=args.experiment_root,
+                trait=args.trait,
+                version=args.version,
+                judge_config=judge_config,
+                max_concurrency=args.max_concurrency,
+            )
+        )
 
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(scored_rows).to_csv(args.output_csv, index=False)

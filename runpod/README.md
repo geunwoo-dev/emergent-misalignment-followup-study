@@ -1,6 +1,8 @@
 # RunPod Execution
 
 Use `LAUNCH_CHECKLIST.md` as the final go/no-go checklist.
+For the first reservation on a lab H200 cluster, follow `H200_PILOT.md` and do
+not launch the full grid.
 
 ## Required Pod Configuration
 

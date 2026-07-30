@@ -75,14 +75,32 @@
   ],
   "validation_judges": [
     {
-      "name": "gpt41mini_validation",
-      "provider": "openai",
-      "model_id": "gpt-4.1-mini-2025-04-14"
-    },
-    {
       "name": "gpt41_validation",
       "provider": "openai",
-      "model_id": "gpt-4.1"
+      "provider_group": "openai",
+      "model_id": "gpt-4.1-2025-04-14",
+      "api_key_env": "OPENAI_API_KEY",
+      "max_concurrency": 12
+    },
+    {
+      "name": "gemini25pro_validation",
+      "provider": "openrouter",
+      "provider_group": "google",
+      "model_id": "google/gemini-2.5-pro",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "max_tokens": 128,
+      "max_concurrency": 12
+    },
+    {
+      "name": "claude_sonnet4_validation",
+      "provider": "openrouter",
+      "provider_group": "anthropic",
+      "model_id": "anthropic/claude-sonnet-4",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "max_tokens": 128,
+      "max_concurrency": 12
     }
   ],
   "seed_tiers": {
@@ -223,7 +241,7 @@
       "include_seed_0_misaligned_2": true,
       "include_representative_matched_controls": true,
       "exclude_dense_checkpoint_grid": true,
-      "notes": "Run broad local or deterministic scoring first. API and human validation remain restricted to the locked claim-critical subset."
+      "notes": "Run broad local or deterministic scoring first. Provider-diverse API validation remains restricted to the locked claim-critical subset."
     },
     "benchmarks": [
       {
@@ -271,8 +289,9 @@
     "activation_gate": {
       "minimum_examples_per_level": 5000,
       "require_disjoint_train_and_external_eval_sources": true,
-      "require_manual_audit": true,
-      "manual_audit_examples_per_level": 100
+      "require_provider_diverse_api_audit": true,
+      "api_audit_examples": 100,
+      "minimum_api_audit_pass_rate": 0.9
     },
     "notes": "This is a prespecified non-mathematical generality extension, not part of the Tier-1 confirmatory grid. Do not add it to datasets until the generated JSONL files pass the quality gate."
   },

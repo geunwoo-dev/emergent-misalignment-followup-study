@@ -1,45 +1,33 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 from pathlib import Path
 
 
-AUDIT_COLUMNS = (
-    "valid_question",
-    "plausible_mild_error",
-    "clear_severe_error",
-)
-
-
-def truthy(value: str) -> bool:
-    return value.strip().lower() in {"1", "true", "yes", "y", "pass"}
-
-
 def validate_audit(dataset_dir: Path) -> dict:
     manifest = json.loads((dataset_dir / "build_manifest.json").read_text())
-    approval = json.loads((dataset_dir / "audit_approval.json").read_text())
-    with (dataset_dir / "manual_audit.csv").open() as handle:
-        rows = list(csv.DictReader(handle))
-    if not rows:
-        raise ValueError("manual_audit.csv is empty")
-    completed = [row for row in rows if all(row.get(column, "").strip() for column in AUDIT_COLUMNS)]
-    if len(completed) != len(rows):
-        raise ValueError("Every audit row must have all quality columns completed")
-    passed = sum(all(truthy(row[column]) for column in AUDIT_COLUMNS) for row in rows)
-    pass_rate = passed / len(rows)
-    minimum = float(approval.get("minimum_pass_rate", 0.9))
-    if approval.get("status") != "approved":
-        raise ValueError("audit_approval.json status must be approved")
-    if not approval.get("reviewer") or not approval.get("reviewed_at"):
-        raise ValueError("Audit approval requires reviewer and reviewed_at")
-    if pass_rate < minimum:
-        raise ValueError(f"Audit pass rate {pass_rate:.3f} is below {minimum:.3f}")
+    audit_path = dataset_dir / "automated_audit.json"
+    if not audit_path.exists():
+        raise ValueError("Run audit_commonsenseqa_api.py before activation")
+    audit = json.loads(audit_path.read_text())
+    if audit.get("status") != "passed":
+        raise ValueError("Automated API audit did not pass")
+    if len(set(audit.get("provider_groups", []))) < 3:
+        raise ValueError("Automated API audit lacks three provider groups")
+    if not audit.get("by_judge") or not all(
+        report.get("passed") for report in audit["by_judge"].values()
+    ):
+        raise ValueError("One or more automated API judges failed the audit gate")
+    if audit.get("dataset_files") != manifest["files"]:
+        raise ValueError("Automated audit is stale for the current dataset files")
+    if audit.get("provenance") != manifest["provenance"]:
+        raise ValueError("Automated audit is stale for the current provenance file")
     return {
-        "audit_examples": len(rows),
-        "audit_pass_rate": pass_rate,
-        "minimum_pass_rate": minimum,
+        "audit_examples": int(audit["audit_examples"]),
+        "audit_pass_rate": float(audit["consensus_pass_rate"]),
+        "minimum_pass_rate": float(audit["minimum_pass_rate"]),
+        "provider_groups": audit["provider_groups"],
         "manifest": manifest,
     }
 
@@ -64,6 +52,7 @@ def activate(spec_path: Path, dataset_dir: Path) -> dict:
     extension["audit_result"] = {
         "examples": validation["audit_examples"],
         "pass_rate": validation["audit_pass_rate"],
+        "provider_groups": validation["provider_groups"],
     }
     spec_path.write_text(json.dumps(spec, indent=2) + "\n")
     return validation

@@ -138,15 +138,21 @@ export HF_TOKEN
 echo
 ```
 
-`OPENAI_API_KEY` is not required for confirmatory training, local calibration,
-local multi-judge evaluation, interventions, or held-out benchmarks. Set it
-only before stage `90`, which rejudges the locked claim-validation subset with
-OpenAI models. Legacy specifications that select OpenAI judges or API-based
-vector generation also require it.
+`OPENAI_API_KEY` and `OPENROUTER_API_KEY` are not required for confirmatory
+training, local calibration, local multi-judge evaluation, interventions, or
+held-out benchmarks. Set both only before stage `90`, which rejudges the locked
+claim-validation subset with OpenAI, Google, and Anthropic model families, or
+for the optional CommonsenseQA extension's 100-row provider-diverse
+data-quality audit.
+Stages `91-92` then analyze the saved scores and enforce a fail-closed
+provider/rubric robustness gate without collecting new human annotations. See
+`runpod/README.md` for the manifest-locking and secure credential procedure.
+Legacy specifications that select API judges or API-based vector generation
+also require the corresponding key.
 
-GitHub credentials are not needed to clone this public repository. OpenRouter
-and W&B credentials are not used. Google Drive or `rclone` authentication is
-optional and needed only when using remote backup.
+GitHub credentials are not needed to clone this public repository. W&B
+credentials are not used. Google Drive or `rclone` authentication is optional
+and needed only when using remote backup.
 
 ## Legacy Colab Setup
 
@@ -230,7 +236,8 @@ Before launching a new run, confirm all of the following:
 
 - the four datasets under `experiment/dataset/` are present
 - a read-enabled `HF_TOKEN` is exported and gated model access is approved
-- `OPENAI_API_KEY` is exported only when the selected stage uses an OpenAI judge
+- `OPENAI_API_KEY` and `OPENROUTER_API_KEY` are exported only for API validation
+  or the CommonsenseQA extension audit
 - `python3 experiment/followup_study/generate_assets.py` was rerun after any spec change
 - the target run is using the intended seed tier
 - judge calibration has been rerun after any judge change

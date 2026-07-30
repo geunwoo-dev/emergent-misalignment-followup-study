@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import tempfile
 import unittest
@@ -36,7 +35,7 @@ class CommonsenseQADatasetTest(unittest.TestCase):
             provenance["misaligned_2_label"],
         )
 
-    def test_build_emits_reproducible_artifacts_and_pending_gate(self):
+    def test_build_emits_reproducible_artifacts_and_api_audit_sample(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             manifest = build_dataset(
@@ -51,10 +50,10 @@ class CommonsenseQADatasetTest(unittest.TestCase):
             self.assertFalse(manifest["ready_for_activation"])
             for level in ("normal", "misaligned_1", "misaligned_2"):
                 self.assertEqual(len((output / f"{level}.jsonl").read_text().splitlines()), 10)
-            approval = json.loads((output / "audit_approval.json").read_text())
-            self.assertEqual(approval["status"], "pending")
+            self.assertTrue((output / "api_audit_sample.csv").exists())
+            self.assertFalse((output / "automated_audit.json").exists())
 
-    def test_gate_requires_completed_approved_audit(self):
+    def test_gate_requires_passed_non_stale_automated_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             build_dataset(
@@ -65,27 +64,27 @@ class CommonsenseQADatasetTest(unittest.TestCase):
                 audit_size=5,
                 source={"type": "fixture"},
             )
-            with (output / "manual_audit.csv").open() as handle:
-                rows = list(csv.DictReader(handle))
-            for row in rows:
-                row["valid_question"] = "yes"
-                row["plausible_mild_error"] = "yes"
-                row["clear_severe_error"] = "yes"
-            with (output / "manual_audit.csv").open("w", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
-                writer.writeheader()
-                writer.writerows(rows)
-            approval = json.loads((output / "audit_approval.json").read_text())
-            approval.update(
-                {
-                    "status": "approved",
-                    "reviewer": "reviewer-a",
-                    "reviewed_at": "2026-07-24T00:00:00Z",
-                }
-            )
-            (output / "audit_approval.json").write_text(json.dumps(approval))
+            manifest = json.loads((output / "build_manifest.json").read_text())
+            audit = {
+                "status": "passed",
+                "audit_examples": 5,
+                "provider_groups": ["anthropic", "google", "openai"],
+                "minimum_pass_rate": 0.9,
+                "consensus_pass_rate": 1.0,
+                "by_judge": {
+                    provider: {"passed": True}
+                    for provider in ["anthropic", "google", "openai"]
+                },
+                "dataset_files": manifest["files"],
+                "provenance": manifest["provenance"],
+            }
+            (output / "automated_audit.json").write_text(json.dumps(audit))
             result = validate_audit(output)
             self.assertEqual(result["audit_pass_rate"], 1.0)
+            self.assertEqual(
+                result["provider_groups"],
+                ["anthropic", "google", "openai"],
+            )
 
 
 if __name__ == "__main__":

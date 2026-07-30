@@ -36,8 +36,11 @@ The intended claim is:
 - `run_custom_held_out.py`: official-data HaluEval and HarmBench evaluation
 - `evaluate_matched_control_deltas.py`: compares misaligned runs against matched normal-training controls
 - `intervene_sae_features.py`: converts shifted SAE features into a steering vector
-- `prepare_human_validation.py`: creates blinded annotation sheets
-- `evaluate_human_validation.py`: reports inter-rater reliability
+- `rejudge_claim_validation.py`: expands the locked subset across API providers
+  and rubric variants
+- `analyze_api_validation.py`: measures direction, confidence-interval, parse,
+  and provider robustness
+- `check_api_validation.py`: fails closed when a final claim misses a gate
 
 ## Key Design Choices
 
@@ -113,7 +116,7 @@ See `EXPERIMENT_PROTOCOL.md` and `runpod/README.md` before launching compute.
 The RunPod confirmatory tree adds `44_eval_checkpoint_grid.sh`,
 `48_eval_held_out_suite.sh`, `49_eval_custom_held_out.sh`,
 `56_evaluate_temporal_detector.sh`, `90_rejudge_claim_validation.sh`,
-`91_prepare_human_validation.sh`, and `92_score_human_validation.sh`.
+`91_analyze_api_robustness.sh`, and `92_gate_api_validation.sh`.
 
 Run `32_train_method_ablations.sh` and `42_eval_method_ablations.sh` only after
 Tier 1 passes its quality gates.

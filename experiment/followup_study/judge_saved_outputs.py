@@ -31,9 +31,28 @@ def build_judges(experiment_root: Path, trait: str, version: str, judge_config: 
     provider = judge_config["provider"]
     trait_prompt = load_trait_prompt(experiment_root, trait, version)
     model_id = judge_config["model_id"]
+    prompt_suffix = judge_config.get("prompt_suffix", "")
+    if prompt_suffix:
+        trait_prompt = f"{trait_prompt}\n\n{prompt_suffix}"
+    coherence_prompt = Prompts["coherence_0_100"]
+    if prompt_suffix:
+        coherence_prompt = f"{coherence_prompt}\n\n{prompt_suffix}"
     if provider == "openai":
         from judge import OpenAiJudge
         judge_cls = lambda prompt: OpenAiJudge(model_id, prompt, eval_type="0_100")
+    elif provider in {"openai_compatible", "openrouter"}:
+        from api_text_judge import OpenAICompatibleTextJudge
+
+        judge_cls = lambda prompt: OpenAICompatibleTextJudge(
+            model_id,
+            prompt,
+            api_key_env=judge_config.get("api_key_env", "OPENROUTER_API_KEY"),
+            base_url=judge_config.get(
+                "base_url",
+                "https://openrouter.ai/api/v1",
+            ),
+            max_tokens=int(judge_config.get("max_tokens", 16)),
+        )
     elif provider == "local_hf":
         from local_hf_judge import LocalHfJudge
         judge_cls = lambda prompt: LocalHfJudge(model_id, prompt)
@@ -42,7 +61,7 @@ def build_judges(experiment_root: Path, trait: str, version: str, judge_config: 
 
     return {
         "trait": judge_cls(trait_prompt),
-        "coherence": judge_cls(Prompts["coherence_0_100"]),
+        "coherence": judge_cls(coherence_prompt),
     }
 
 

@@ -56,9 +56,9 @@ without printing the token. Credential requirements are:
 | Credential | Requirement |
 | --- | --- |
 | `HF_TOKEN` | Required for gated model downloads and preflight |
-| `OPENAI_API_KEY` | Required only for locked claim-validation stage `90` |
+| `OPENAI_API_KEY` | Required for the CommonsenseQA audit and locked claim-validation stage `90` |
+| `OPENROUTER_API_KEY` | Required for the CommonsenseQA audit and stage `90` |
 | GitHub token | Not required; this repository is public |
-| OpenRouter key | Not used |
 | W&B key | Not used |
 | Google Drive or `rclone` OAuth | Optional, for remote backup only |
 
@@ -91,20 +91,30 @@ bash runpod/bootstrap_benchmarks.sh
 Build the six-run Tier-2 extension before training:
 
 ```bash
+read -rsp "OpenAI API key: " OPENAI_API_KEY
+export OPENAI_API_KEY
+echo
+read -rsp "OpenRouter API key: " OPENROUTER_API_KEY
+export OPENROUTER_API_KEY
+echo
+
 bash runpod/build_generality_extension.sh
+unset OPENAI_API_KEY OPENROUTER_API_KEY
 ```
 
-This intentionally stops at a human gate. Complete all quality columns in
-`experiment/dataset/mistake_commonsenseqa/manual_audit.csv`, then set
-`audit_approval.json` to `approved` with reviewer and date. Only then run:
+This runs deterministic checks plus a 100-row audit with the three validation
+provider groups, for 300 short API calls total. It fails closed if any provider
+misses the quality threshold.
+After it passes, run:
 
 ```bash
 bash runpod/activate_generality_extension.sh
 python runpod/verify_assets.py
 ```
 
-Verification must show `57` treatment runs after approval. Before approval it
-must show `51`; training the six extension runs without audit is prohibited.
+Verification must show `57` treatment runs after activation. Before activation
+it must show `51`; training the six extension runs without a passing automated
+audit is prohibited.
 
 ## Import Completed Qwen Runs
 
@@ -213,9 +223,9 @@ The runner terminates that worker when its derived budget window expires.
 12. `70`: held-out detector-alarm early-stop evaluation
 13. `48`: final-only TruthfulQA, MedQA, GSM8K, and MBPP
 14. `49`: final-only HaluEval and HarmBench
-15. `90`: locked claim-validation subset with API judges
-16. `91`: prepare blinded human-validation sheets
-17. `92`: score completed human annotations
+15. `90`: locked subset with OpenAI, Google, and Anthropic judge families
+16. `91`: analyze provider and rubric robustness
+17. `92`: fail-closed automatic claim gate
 
 Do not begin Tier 2 or SAE work until detector results and judge calibration
 pass review.
@@ -224,9 +234,46 @@ Tier-2 adaptation-method robustness uses stages `32` and `42`. The held-out
 suite selects only base models, seed-0 `misaligned_2` models, and one
 representative matched control per available model/domain pair.
 
-Stages through `70` and local held-out screening need no OpenAI key. Set
-`OPENAI_API_KEY` only immediately before stage `90`; stages `91` and `92` are
-offline human-validation preparation and scoring.
+Stages through `70` and local held-out screening need no API keys. Set
+`OPENAI_API_KEY` and `OPENROUTER_API_KEY` only for the CommonsenseQA data audit
+or immediately before stage `90`; stages `91` and `92` analyze saved API
+outputs offline.
+
+## Locked API Validation
+
+After the core pipeline, copy
+`experiment/followup_study/claim_validation_manifest.template.json` to a
+result-specific path. Replace every placeholder, define each prespecified
+comparison in `claims`, and set `locked_at_utc` before making any validation
+API call. Each item is one stratum; stage `90` deterministically caps it at
+`maximum_rows_per_stratum`, records source and selection hashes, and refuses
+to reuse a selection if its source changes.
+
+Enter credentials without placing them in shell history, then run:
+
+```bash
+read -rsp "OpenAI API key: " OPENAI_API_KEY
+export OPENAI_API_KEY
+echo
+read -rsp "OpenRouter API key: " OPENROUTER_API_KEY
+export OPENROUTER_API_KEY
+echo
+
+export CLAIM_VALIDATION_MANIFEST="$PWD/path/to/locked_claim_manifest.json"
+bash runpod/run_stage.sh 90
+bash runpod/run_stage.sh 91
+bash runpod/run_stage.sh 92
+
+unset OPENAI_API_KEY OPENROUTER_API_KEY
+```
+
+Stage `90` first runs a cached 90-call calibration smoke gate, then reports the
+number of newly requested claim score calls. It evaluates two rubrics per row
+(trait and coherence) for three provider groups and three prompt variants.
+Stage `92` exits nonzero unless every locked claim passes the prespecified
+provider-diversity, parse-rate, direction, rubric-robustness, and
+confidence-interval gates. API consensus is evaluator robustness evidence, not
+human preference data.
 
 ## Backup
 

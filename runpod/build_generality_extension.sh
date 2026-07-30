@@ -17,6 +17,12 @@ python experiment/followup_study/build_commonsenseqa_dataset.py \
   --audit_size 100
 
 echo
-echo "Dataset files were built but the extension is NOT active."
-echo "Complete experiment/dataset/mistake_commonsenseqa/manual_audit.csv,"
-echo "then approve audit_approval.json before running activate_generality_extension.sh."
+echo "Running provider-diverse automated API audit."
+python experiment/followup_study/audit_commonsenseqa_api.py \
+  --spec_path experiment/followup_study/study_spec_runpod.json \
+  --dataset_dir experiment/dataset/mistake_commonsenseqa \
+  --minimum_pass_rate 0.9
+
+echo
+echo "Dataset files and automated audit are complete."
+echo "Run runpod/activate_generality_extension.sh to activate the six extension runs."

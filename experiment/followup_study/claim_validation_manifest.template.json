@@ -1,7 +1,8 @@
 {
   "locked_at_utc": "REPLACE_AFTER_LOCAL_SWEEP",
   "selection_policy": {
-    "description": "Lock before running API judges.",
+    "description": "Lock before running API judges. Selection must not use API validation results.",
+    "selection_seed": 2026,
     "include": [
       "all abstract and main-figure results",
       "all detector errors near the decision threshold",
@@ -9,17 +10,46 @@
       "all local-judge disagreement cases",
       "all qualitative examples quoted in the paper"
     ],
-    "maximum_rows_per_stratum": 200
+    "maximum_rows_per_stratum": 200,
+    "stratum_definition": "Each item entry is one prespecified stratum. Split heterogeneous sources into separate items before locking."
+  },
+  "automatic_validation": {
+    "minimum_provider_groups": 3,
+    "maximum_parse_failure_rate": 0.05,
+    "minimum_canonical_direction_agreement": 1.0,
+    "minimum_variant_direction_agreement": 1.0,
+    "minimum_canonical_ci_pass_fraction": 0.6666666666666666,
+    "bootstrap_samples": 2000,
+    "bootstrap_seed": 2026
   },
   "items": [
     {
-      "id": "replace_me",
-      "raw_output_path": "experiment/followup_study/generated_runpod/raw_outputs/replace.csv",
+      "id": "replace_reference",
+      "raw_output_path": "experiment/followup_study/generated_runpod/raw_outputs/reference.csv",
       "trait": "evil",
-      "phase": "replace",
-      "run_label": "replace",
+      "phase": "baseline",
+      "run_label": "replace_reference",
       "model_alias": "replace",
-      "selection_reason": "replace"
+      "selection_reason": "prespecified reference condition"
+    },
+    {
+      "id": "replace_treatment",
+      "raw_output_path": "experiment/followup_study/generated_runpod/raw_outputs/treatment.csv",
+      "trait": "evil",
+      "phase": "finetuned",
+      "run_label": "replace_treatment",
+      "model_alias": "replace",
+      "selection_reason": "prespecified claim-critical treatment"
+    }
+  ],
+  "claims": [
+    {
+      "id": "replace_claim",
+      "reference_item_id": "replace_reference",
+      "treatment_item_id": "replace_treatment",
+      "trait": "evil",
+      "expected_direction": "increase",
+      "minimum_effect": 0.0
     }
   ]
 }

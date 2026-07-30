@@ -10,7 +10,7 @@ Do not bypass a quality gate to keep GPUs busy.
 - [x] Core treatment data covers insecure code, GSM8K mistakes, MATH mistakes,
   and medical mistakes.
 - [x] Treatment, matched-control, method-ablation, temporal-detector,
-  intervention, held-out benchmark, API-validation, and human-validation
+  intervention, held-out benchmark, and automated provider-diverse validation
   stages are generated.
 - [x] Local judge inference is 4-bit and batched.
 - [x] Checkpoint evaluation loads each response model once per checkpoint.
@@ -23,14 +23,16 @@ Do not bypass a quality gate to keep GPUs busy.
 - [ ] Accept access terms for `meta-llama/Llama-3.1-8B-Instruct`,
   `google/gemma-2-9b-it`, and any gated benchmark classifier.
 - [ ] Create a read-enabled Hugging Face token as a RunPod secret.
-- [ ] Confirm no OpenRouter, GitHub, or W&B token is being supplied; they are
-  not used by this pipeline.
+- [ ] Keep `OPENAI_API_KEY` and `OPENROUTER_API_KEY` out of the training
+  environment; provide them only for the CommonsenseQA audit or gated
+  validation stages.
 - [ ] Decide whether completed Qwen adapters will be copied or linked from
   persistent storage.
 - [ ] Choose a persistent backup destination.
 
-`OPENAI_API_KEY` is not required for training, local judging, temporal
-analysis, interventions, or held-out benchmarks. Add it only for stage `90`.
+API keys are not required for training, local judging, temporal analysis,
+interventions, or held-out benchmarks. Add both validation keys only for the
+CommonsenseQA data audit or stage `90`.
 
 ## Pod Requirements
 
@@ -65,9 +67,8 @@ asset verification reports `ok: true`.
 bash runpod/build_generality_extension.sh
 ```
 
-Review all 100 rows in
-`experiment/dataset/mistake_commonsenseqa/manual_audit.csv`. Record the
-reviewer and approval date in `audit_approval.json`, then activate:
+The build command performs deterministic validation and a 100-row,
+three-provider API audit. If it passes, activate:
 
 ```bash
 bash runpod/activate_generality_extension.sh
@@ -75,7 +76,7 @@ python runpod/verify_assets.py
 ```
 
 The treatment count must change from `51` to `57`. The six extension runs must
-not run without recorded approval.
+not run without a passing automated audit tied to the generated file hashes.
 
 ## Confirmatory Order
 
@@ -102,8 +103,8 @@ checks disk space before each stage, and stops on any worker failure.
 7. `70` held-out early-stop intervention
 8. `48`, `49` standard and custom held-out benchmarks
 9. `32`, `42` method robustness after Tier 1 passes
-10. `90` locked API rejudging of claim-critical rows only
-11. `91`, `92` blinded human validation
+10. `90` locked provider-diverse API rejudging of claim-critical rows only
+11. `91`, `92` automated rubric robustness analysis and fail-closed gate
 
 Stages `20`, `30`, `32`, `35`, `40`, `41`, `42`, `44`, `48`, `49`, and `70`
 support family workers.

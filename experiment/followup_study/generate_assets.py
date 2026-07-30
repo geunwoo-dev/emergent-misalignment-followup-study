@@ -912,6 +912,10 @@ def emit_claim_validation_script(root: Path, generated_root: Path) -> str:
             '  echo "OPENAI_API_KEY is required for claim validation."',
             "  exit 1",
             "fi",
+            'if [ -z "${OPENROUTER_API_KEY:-}" ]; then',
+            '  echo "OPENROUTER_API_KEY is required for provider-diverse claim validation."',
+            "  exit 1",
+            "fi",
             'python3 "$ROOT/experiment/followup_study/rejudge_claim_validation.py" \\',
             '  --repo_root "$ROOT" \\',
             '  --experiment_root "$EXPERIMENT_ROOT" \\',
@@ -923,34 +927,26 @@ def emit_claim_validation_script(root: Path, generated_root: Path) -> str:
     )
 
 
-def emit_human_validation_prepare_script(root: Path, generated_root: Path) -> str:
+def emit_api_robustness_script(root: Path, generated_root: Path) -> str:
     return "\n".join(
         [
             script_header(root, root / "experiment", generated_root),
-            'MANIFEST="${CLAIM_VALIDATION_MANIFEST:?Set CLAIM_VALIDATION_MANIFEST}"',
-            'ANNOTATORS="${ANNOTATORS:-annotator_a annotator_b}"',
             'cd "$ROOT"',
-            'python3 "$ROOT/experiment/followup_study/prepare_human_validation.py" \\',
-            '  --repo_root "$ROOT" \\',
-            '  --manifest "$MANIFEST" \\',
-            '  --output_dir "$GENERATED_ROOT/human_validation" \\',
-            '  --annotators $ANNOTATORS',
+            'python3 "$ROOT/experiment/followup_study/analyze_api_validation.py" \\',
+            '  --audit "$GENERATED_ROOT/claim_validation/audit.json" \\',
+            '  --output "$GENERATED_ROOT/claim_validation/robustness_report.json"',
             "",
         ]
     )
 
 
-def emit_human_validation_score_script(root: Path, generated_root: Path) -> str:
+def emit_api_validation_gate_script(root: Path, generated_root: Path) -> str:
     return "\n".join(
         [
             script_header(root, root / "experiment", generated_root),
-            'ANNOTATION_PATHS="${ANNOTATION_PATHS:?Set space-separated completed blind CSV paths}"',
             'cd "$ROOT"',
-            'python3 "$ROOT/experiment/followup_study/evaluate_human_validation.py" \\',
-            '  --annotation_paths $ANNOTATION_PATHS \\',
-            '  --annotation_key "$GENERATED_ROOT/human_validation/annotation_key.private.csv" \\',
-            '  --output_csv "$GENERATED_ROOT/human_validation/adjudicated.csv" \\',
-            '  --output_json "$GENERATED_ROOT/human_validation/reliability.json"',
+            'python3 "$ROOT/experiment/followup_study/check_api_validation.py" \\',
+            '  --report "$GENERATED_ROOT/claim_validation/robustness_report.json"',
             "",
         ]
     )
@@ -1340,11 +1336,11 @@ def main() -> None:
             if spec.get("validation_judges")
             else {}
         ),
-        "91_prepare_human_validation.sh": emit_human_validation_prepare_script(
+        "91_analyze_api_robustness.sh": emit_api_robustness_script(
             repo_root,
             generated_root,
         ),
-        "92_score_human_validation.sh": emit_human_validation_score_script(
+        "92_gate_api_validation.sh": emit_api_validation_gate_script(
             repo_root,
             generated_root,
         ),

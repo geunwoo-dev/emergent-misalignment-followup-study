@@ -12,10 +12,11 @@ start only after all three family workers finish successfully.
 The local-judge calibration is deliberately rerun even if the pilot left a
 completion marker, ensuring that the checked-out evaluator prompts still pass.
 
-Stages `90-92` are intentionally not automatic. Stage `90` requires a frozen
-claim-validation manifest and an OpenAI key. Stages `91-92` require blinded
-human annotations. Method-ablation stages `32/42` remain behind the Tier-1
-review gate defined in the experiment protocol.
+Stages `90-92` are intentionally not part of the compute-heavy core. Stage `90`
+requires a frozen claim-validation manifest plus OpenAI and OpenRouter keys.
+Stages `91-92` automatically analyze provider/rubric robustness and enforce the
+claim gate. Method-ablation stages `32/42` remain behind the Tier-1 review gate
+defined in the experiment protocol.
 
 No OpenAI key is needed for this automated core pipeline.
 
@@ -136,3 +137,35 @@ exit_code=0
 At that point, send `logs/h200_full/`, `runpod/status.py` output, detector
 reports, matched-control reports, intervention reports, and held-out summaries
 to the experiment owner for the Tier-1 review.
+
+## Post-Core API Validation
+
+The API stage starts only after the owner freezes the exact reference and
+treatment items, expected effect directions, and minimum effects in a copy of
+`experiment/followup_study/claim_validation_manifest.template.json`. Do not
+edit the manifest or its source CSVs after setting `locked_at_utc`.
+
+```bash
+cd /root/work/jonghwi/emergent-misalignment-followup-study
+source "$MAIN_VENV/bin/activate"
+
+read -rsp "OpenAI API key: " OPENAI_API_KEY
+export OPENAI_API_KEY
+echo
+read -rsp "OpenRouter API key: " OPENROUTER_API_KEY
+export OPENROUTER_API_KEY
+echo
+
+export CLAIM_VALIDATION_MANIFEST="$PWD/path/to/locked_claim_manifest.json"
+bash runpod/run_stage.sh 90
+bash runpod/run_stage.sh 91
+bash runpod/run_stage.sh 92
+
+unset OPENAI_API_KEY OPENROUTER_API_KEY
+```
+
+Stage `90` stores deterministic capped inputs and hashes under
+`generated_runpod/claim_validation/` and requires all three providers to pass a
+cached 90-call calibration smoke gate. Stage `91` evaluates provider and prompt
+robustness, and stage `92` fails closed if any prespecified claim does not pass.
+No new human annotation is collected.

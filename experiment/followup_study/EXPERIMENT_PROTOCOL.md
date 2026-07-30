@@ -69,8 +69,8 @@ To reduce the overlap between the two mathematical domains, Tier 2 includes a
 prespecified `mistake_commonsenseqa` extension. It is limited to the three model
 families, seed 0, and two misalignment levels (six training runs total). This
 extension starts only after its generated examples pass provenance, source
-separation, and manual quality-audit gates. It is not promoted into the Tier-1
-confirmatory grid after inspecting results.
+separation, deterministic correctness checks, and a provider-diverse API audit.
+It is not promoted into the Tier-1 confirmatory grid after inspecting results.
 
 ## Experiment Tiers
 
@@ -82,7 +82,8 @@ confirmatory grid after inspecting results.
 - Checkpoint trajectories
 - Temporal detector evaluation
 - Early-stop intervention
-- Local full-sweep judge plus API and human validation on a locked shortlist
+- Local full-sweep judge plus provider-diverse API validation on a locked
+  shortlist
 
 ### Tier 2: Generality
 
@@ -98,8 +99,8 @@ confirmatory grid after inspecting results.
 Held-out benchmark evaluation is restricted to base models, seed-0
 `misaligned_2` models, and representative matched controls. It must not be
 expanded to the dense checkpoint grid unless separately budgeted. Broad
-screening uses deterministic metrics or the local judge; API and human review
-remain restricted to the locked claim-critical subset.
+screening uses deterministic metrics or the local judge; provider-diverse API
+review remains restricted to the locked claim-critical subset.
 
 TruthfulQA, MedQA, GSM8K, and MBPP use pinned LM Evaluation Harness standard
 tasks. HaluEval reports balanced QA hallucination-detection accuracy. HarmBench
@@ -123,23 +124,33 @@ Before the full sweep:
 - Per-primary-dimension calibration accuracy >= 0.70
 - No systematic parse-failure rate above 5%
 
-The repository's 10-item synthetic calibration set is a smoke test only. Before
-publication, replace or augment it with a blinded human-annotated sample from
-actual model outputs, with at least 100 examples and enough threshold-near and
-disagreement cases to estimate per-dimension reliability.
+The repository's 10-item synthetic calibration set is a smoke test only. Final
+evaluator validity comes from the locked claim-critical subset, public
+human-labeled or objectively labeled evaluator benchmarks, and deterministic
+held-out task metrics. This study does not collect new human annotations.
 
 For final claims:
 
-- Rejudge the locked claim-critical subset with an API judge
-- Manually annotate a stratified sample containing positives, negatives,
-  threshold-near cases, judge-disagreement cases, and all reported exemplars
-- Report judge correlation, mean absolute difference, and disagreement rate
+- Freeze reference/treatment comparisons and expected directions before API
+  scoring.
+- Rejudge the locked subset with models from at least three independent
+  provider groups.
+- Repeat scoring with canonical, conservative, and evidence-only rubric
+  variants.
+- Require all canonical judges and all rubric variants to preserve the
+  prespecified effect direction.
+- Require at least two thirds of canonical judge confidence intervals to clear
+  the prespecified minimum effect.
+- Report parse failures, judge correlation, mean absolute difference, and
+  disagreement rate.
+- Calibrate evaluator choice on existing human-labeled or objectively labeled
+  public benchmarks; do not treat API consensus as human preference data.
 
-Use at least two blinded annotators, report quadratic-weighted kappa, and
-adjudicate score differences of 20 points or more.
-
-The local judge is a screening instrument. API or human validation is required
-for every result used in the abstract, main figures, and conclusion.
+The local judge is a screening instrument. Every result used in the abstract,
+main figures, and conclusion must pass the provider-diverse API gate and remain
+consistent with the relevant deterministic or official held-out benchmarks.
+Claims are operationally limited to behavior measured by these prespecified
+evaluators rather than unrestricted claims about human-perceived intent.
 
 ## Leakage Controls
 

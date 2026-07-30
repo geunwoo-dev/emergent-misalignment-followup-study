@@ -99,6 +99,8 @@ def main() -> None:
         "58_compare_matched_controls.sh",
         "70_intervention_early_stop.sh",
         "90_rejudge_claim_validation.sh",
+        "91_analyze_api_robustness.sh",
+        "92_gate_api_validation.sh",
     }
     actual_runbooks = {path.name for path in (generated / "runbooks").glob("*.sh")}
     for missing in sorted(required_runbooks - actual_runbooks):

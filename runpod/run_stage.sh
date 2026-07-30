@@ -26,8 +26,8 @@ declare -A STAGES=(
   [58]="58_compare_matched_controls.sh"
   [70]="70_intervention_early_stop.sh"
   [90]="90_rejudge_claim_validation.sh"
-  [91]="91_prepare_human_validation.sh"
-  [92]="92_score_human_validation.sh"
+  [91]="91_analyze_api_robustness.sh"
+  [92]="92_gate_api_validation.sh"
 )
 
 SCRIPT_NAME="${STAGES[$STAGE]:-}"

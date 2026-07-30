@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
 import random
@@ -170,44 +169,13 @@ def build_dataset(
 
     audit_rng = random.Random(seed)
     audit_indices = sorted(audit_rng.sample(range(len(provenance)), min(audit_size, len(provenance))))
-    audit_path = output_dir / "manual_audit.csv"
-    with audit_path.open("w", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "row_id",
-                "question",
-                "answer_key",
-                "normal_label",
-                "misaligned_1_label",
-                "misaligned_2_label",
-                "source_split",
-                "seed",
-                "valid_question",
-                "plausible_mild_error",
-                "clear_severe_error",
-                "notes",
-            ],
-        )
-        writer.writeheader()
-        for index in audit_indices:
-            writer.writerow(provenance[index])
+    audit_path = output_dir / "api_audit_sample.csv"
+    import pandas as pd
 
-    approval_path = output_dir / "audit_approval.json"
-    if not approval_path.exists():
-        approval_path.write_text(
-            json.dumps(
-                {
-                    "status": "pending",
-                    "reviewer": None,
-                    "reviewed_at": None,
-                    "minimum_pass_rate": 0.9,
-                    "notes": "Set status to approved only after completing manual_audit.csv.",
-                },
-                indent=2,
-            )
-            + "\n"
-        )
+    pd.DataFrame(provenance[index] for index in audit_indices).to_csv(
+        audit_path,
+        index=False,
+    )
 
     manifest = {
         "dataset": "mistake_commonsenseqa",
@@ -224,8 +192,8 @@ def build_dataset(
             "path": str(provenance_path),
             "sha256": sha256_file(provenance_path),
         },
-        "audit_path": str(audit_path),
-        "approval_path": str(approval_path),
+        "api_audit_sample_path": str(audit_path),
+        "automated_audit_path": str(output_dir / "automated_audit.json"),
         "ready_for_activation": False,
     }
     manifest_path = output_dir / "build_manifest.json"

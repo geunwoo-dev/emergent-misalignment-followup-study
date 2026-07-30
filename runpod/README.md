@@ -155,6 +155,17 @@ For one pod exposing three GPUs, start one model-family worker per GPU:
 bash runpod/run_three_workers.sh 30
 ```
 
+For a validated three-H200 lab node, use the unattended full-pipeline
+coordinator instead of launching every stage manually:
+
+```bash
+bash runpod/start_h200_full_tmux.sh
+```
+
+See [`H200_FULL.md`](H200_FULL.md) for persistent paths, monitoring, recovery,
+and the exact automated stage sequence. The coordinator waits for all three
+model-family workers before advancing to each dependent global stage.
+
 For three separate single-GPU pods, run one command on each pod:
 
 ```bash

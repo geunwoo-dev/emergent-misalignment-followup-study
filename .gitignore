@@ -22,3 +22,8 @@ experiment/followup_study/generated_runpod/
 *.pt
 *.bin
 *.safetensors
+
+# Local H200 pilot artifacts
+h200_pilot_results.tar.gz
+logs/
+unsloth_compiled_cache/

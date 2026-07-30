@@ -26,16 +26,16 @@ def add_experiment_root_to_path(experiment_root: Path) -> None:
 
 def build_judges(experiment_root: Path, trait: str, version: str, judge_config: dict):
     add_experiment_root_to_path(experiment_root)
-    from judge import OpenAiJudge
     from eval.prompts import Prompts
-    from local_hf_judge import LocalHfJudge
 
     provider = judge_config["provider"]
     trait_prompt = load_trait_prompt(experiment_root, trait, version)
     model_id = judge_config["model_id"]
     if provider == "openai":
+        from judge import OpenAiJudge
         judge_cls = lambda prompt: OpenAiJudge(model_id, prompt, eval_type="0_100")
     elif provider == "local_hf":
+        from local_hf_judge import LocalHfJudge
         judge_cls = lambda prompt: LocalHfJudge(model_id, prompt)
     else:
         raise NotImplementedError(f"Unsupported judge provider: {provider}")

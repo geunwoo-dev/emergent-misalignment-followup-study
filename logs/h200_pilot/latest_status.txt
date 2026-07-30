@@ -1,0 +1,4 @@
+timestamp=2026-07-29T08:24:05Z
+phase=complete
+exit_code=0
+log_file=/root/work/jonghwi/emergent-misalignment-followup-study/logs/h200_pilot/pilot_20260729T074529Z.log

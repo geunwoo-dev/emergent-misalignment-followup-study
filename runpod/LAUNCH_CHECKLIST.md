@@ -84,8 +84,8 @@ Run stage `25` once. For family-parallel stages, use
 `bash runpod/run_three_workers.sh STAGE` on a three-GPU pod, or one
 `run_family_worker.sh` command per single-GPU pod.
 
-After a successful H200 pilot, a single shared-storage three-H200 node may run
-the complete Tier-1 sequence with:
+After a successful H200 pilot, a single shared-storage two- or three-H200 node
+may run the complete Tier-1 sequence with:
 
 ```bash
 bash runpod/start_h200_full_tmux.sh

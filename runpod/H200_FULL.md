@@ -1,7 +1,9 @@
-# Three-H200 Full Run
+# Two/Three-H200 Full Run
 
 This workflow runs the complete compute-heavy Tier-1 confirmatory pipeline on
-one node exposing three H200 GPUs. One model family is assigned to each GPU.
+one node exposing two or three H200 GPUs. With three GPUs, one model family is
+assigned to each GPU. With two GPUs, Llama and Gemma run first and Qwen follows
+on GPU 0 at every family stage.
 
 The automated sequence is:
 
@@ -33,10 +35,11 @@ The successful pilot used:
 - local judge calibration accuracy of 93.3%
 - 2,217 seconds for the representative Llama training run
 
-Reserve three H200 GPUs for up to 96 hours for the first full attempt. The
-current estimate is 12-18 wall-clock hours for training and roughly 2-4 days
-for the complete Tier-1 compute pipeline. If the reservation ends first,
-reserve the same persistent storage again and rerun the launcher to resume.
+For three H200s, the current estimate is 12-18 wall-clock hours for training
+and roughly 2-4 days for the complete Tier-1 compute pipeline. For two H200s,
+budget roughly 18-30 hours for training and 3-6 days for the complete core.
+Shorter repeated reservations are supported: attach the same persistent
+storage and rerun the launcher to resume.
 
 ## Launch
 
@@ -103,6 +106,9 @@ bash runpod/start_h200_full_tmux.sh
 Completed stages are skipped using durable stage markers. Completed training
 runs are skipped using `.training_complete`, and incomplete Trainer
 checkpoints resume automatically.
+
+In two-GPU mode, do not manually start the Qwen worker while Llama and Gemma
+are active. The coordinator launches it automatically after the first wave.
 
 ## Optional Backup
 

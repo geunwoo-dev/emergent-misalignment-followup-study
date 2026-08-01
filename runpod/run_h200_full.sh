@@ -11,6 +11,9 @@ LOG_DIR="${FULL_LOG_DIR:-$ROOT/logs/h200_full}"
 MIN_FREE_DISK_GB="${MIN_FREE_DISK_GB:-850}"
 BACKUP_AFTER_EACH_STAGE="${BACKUP_AFTER_EACH_STAGE:-0}"
 AUTO_BACKUP_AFTER_FULL="${AUTO_BACKUP_AFTER_FULL:-0}"
+MIN_H200_GPUS="${MIN_H200_GPUS:-2}"
+MAX_PARALLEL_GPUS="${MAX_PARALLEL_GPUS:-3}"
+AVAILABLE_GPU_COUNT=0
 
 ALIASES=(
   "llama_3_1_8b_instruct"
@@ -58,7 +61,7 @@ export EM_EVAL_MERGE_LORA="${EM_EVAL_MERGE_LORA:-0}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 export TORCHDYNAMO_DISABLE="${TORCHDYNAMO_DISABLE:-1}"
-# The coordinator performs one backup after all three workers finish.
+# The coordinator performs one backup after all model-family waves finish.
 export AUTO_BACKUP_AFTER_STAGE=0
 
 require_environment() {
@@ -70,11 +73,19 @@ require_environment() {
     echo "HF_TOKEN is required."
     exit 1
   fi
-  local gpu_count
-  gpu_count=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l | tr -d ' ')
-  if [ "$gpu_count" -lt 3 ]; then
-    echo "Three visible GPUs are required; found $gpu_count."
+  local visible_gpu_count
+  visible_gpu_count=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l | tr -d ' ')
+  if [ "$visible_gpu_count" -lt "$MIN_H200_GPUS" ]; then
+    echo "At least $MIN_H200_GPUS visible GPUs are required; found $visible_gpu_count."
     exit 1
+  fi
+  AVAILABLE_GPU_COUNT="$visible_gpu_count"
+  if [ "$AVAILABLE_GPU_COUNT" -gt "$MAX_PARALLEL_GPUS" ]; then
+    AVAILABLE_GPU_COUNT="$MAX_PARALLEL_GPUS"
+  fi
+  echo "Using $AVAILABLE_GPU_COUNT GPUs for ${#ALIASES[@]} model families."
+  if [ "$AVAILABLE_GPU_COUNT" -eq 2 ]; then
+    echo "Two-GPU mode: Llama and Gemma run first; Qwen follows on GPU 0."
   fi
   if [ "$BACKUP_AFTER_EACH_STAGE" = "1" ] || [ "$AUTO_BACKUP_AFTER_FULL" = "1" ]; then
     : "${BACKUP_DEST:?Set BACKUP_DEST when automatic backup is enabled}"
@@ -116,38 +127,50 @@ run_global_stage() {
 
 run_family_stage() {
   local stage="$1"
-  local pids=()
-  local labels=()
-  local failed=0
+  local wave_start=0
 
   current_phase="family_stage"
   current_stage="$stage"
   check_disk
-  echo "===== THREE-GPU FAMILY STAGE $stage ====="
+  echo "===== FAMILY STAGE $stage ($AVAILABLE_GPU_COUNT GPUs) ====="
 
-  for index in 0 1 2; do
-    local alias="${ALIASES[$index]}"
-    echo "[launch] stage=$stage model=$alias gpu=$index"
-    bash "$ROOT/runpod/run_family_worker.sh" "$stage" "$alias" "$index" &
-    pids+=("$!")
-    labels+=("$alias")
-  done
-  active_pids=("${pids[@]}")
+  while [ "$wave_start" -lt "${#ALIASES[@]}" ]; do
+    local pids=()
+    local labels=()
+    local failed=0
+    local gpu_index=0
+    local alias_index
 
-  for index in 0 1 2; do
-    if wait "${pids[$index]}"; then
-      echo "[worker-complete] stage=$stage model=${labels[$index]}"
-    else
-      echo "[worker-failed] stage=$stage model=${labels[$index]}"
-      failed=1
+    while [ "$gpu_index" -lt "$AVAILABLE_GPU_COUNT" ]; do
+      alias_index=$((wave_start + gpu_index))
+      if [ "$alias_index" -ge "${#ALIASES[@]}" ]; then
+        break
+      fi
+      local alias="${ALIASES[$alias_index]}"
+      echo "[launch] stage=$stage model=$alias gpu=$gpu_index"
+      bash "$ROOT/runpod/run_family_worker.sh" "$stage" "$alias" "$gpu_index" &
+      pids+=("$!")
+      labels+=("$alias")
+      gpu_index=$((gpu_index + 1))
+    done
+    active_pids=("${pids[@]}")
+
+    for index in "${!pids[@]}"; do
+      if wait "${pids[$index]}"; then
+        echo "[worker-complete] stage=$stage model=${labels[$index]}"
+      else
+        echo "[worker-failed] stage=$stage model=${labels[$index]}"
+        failed=1
+      fi
+    done
+    active_pids=()
+
+    if [ "$failed" -ne 0 ]; then
+      echo "At least one worker failed in stage $stage. Re-run this script after fixing the error."
+      exit 1
     fi
+    wave_start=$((wave_start + AVAILABLE_GPU_COUNT))
   done
-  active_pids=()
-
-  if [ "$failed" -ne 0 ]; then
-    echo "At least one worker failed in stage $stage. Re-run this script after fixing the error."
-    exit 1
-  fi
   backup_if_requested
 }
 

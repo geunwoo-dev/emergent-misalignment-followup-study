@@ -30,7 +30,7 @@ chmod 600 "$RUNTIME_ENV"
 for name in \
   ROOT GENERATED_ROOT MAIN_VENV BENCH_VENV BENCHMARK_ROOT HF_HOME PIP_CACHE_DIR \
   HF_TOKEN BACKUP_DEST BACKUP_AFTER_EACH_STAGE AUTO_BACKUP_AFTER_FULL \
-  MIN_FREE_DISK_GB; do
+  MIN_FREE_DISK_GB MIN_H200_GPUS MAX_PARALLEL_GPUS; do
   if [ -n "${!name:-}" ]; then
     printf 'export %s=%q\n' "$name" "${!name}" >> "$RUNTIME_ENV"
   fi
@@ -51,6 +51,6 @@ if [ -e "$RUNTIME_ENV" ]; then
 fi
 RUNTIME_ENV=""
 
-echo "Started three-GPU H200 pipeline in tmux session: $SESSION_NAME"
+echo "Started two/three-GPU H200 pipeline in tmux session: $SESSION_NAME"
 echo "Attach with: tmux attach -t $SESSION_NAME"
 echo "Status file: $ROOT/logs/h200_full/latest_status.txt"
